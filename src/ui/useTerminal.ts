@@ -3,6 +3,7 @@ import { createKernel, type Kernel } from '../core/kernel'
 import { buildInitialVfs } from '../core/vfs/bootstrap'
 import { loadContent } from '../content'
 import { builtins } from '../commands'
+import { text } from '../core/process'
 import { createUiHost, type UiHooks } from './host'
 import { createBlockWriter } from './blockWriter'
 import type { Block } from './types'
@@ -17,11 +18,10 @@ export function useTerminal() {
   const idRef = useRef(0)
   const abortRef = useRef<AbortController | null>(null)
 
-  // 一个跨渲染稳定的可变 box：内核只创建一次，但 box.current 里的钩子实现可以
-  // 随时被换成最新的闭包（Task 19 会在 effect 里赋值）。用 useState 的惰性初始值
-  // 而不是 useRef —— react-hooks 的 refs 规则会把「把 ref 的值传给函数」标记为
-  // 可能在渲染期间读取 ref，而这里 createUiHost 只是保存 box 引用、并不会立即读取
-  // box.current；useState 拿到的是普通对象，没有这层（过度保守的）检查。
+  // 用 useState 的惰性初始化，而不是 useRef(...).current：
+  // react-hooks 的 refs 规则禁止在渲染期读 ref.current，而内核构造时就要拿到这个盒子。
+  // 两种写法的初始值都在渲染期求值、行为相同，换写法纯粹是为了不触发该规则。
+  // （盒子在渲染期可写这件事到 Task 19 才真正用上：那时命令可能在 effect 冲刷前就运行。）
   const [hooksBox] = useState<{ current: UiHooks }>(() => ({
     current: {
       clear() { setBlocks([]) },
@@ -60,13 +60,25 @@ export function useTerminal() {
     const ac = new AbortController()
     abortRef.current = ac
 
-    void kernel.run(line, writer, ac.signal).then(code => {
-      writer.flushNow()
-      setBlocks(prev => prev.map(b => (b.id === id ? { ...b, exitCode: code } : b)))
-      setRunning(false)
-      abortRef.current = null
-      setPrompt(kernel.prompt())
-    })
+    void kernel.run(line, writer, ac.signal)
+      .then(code => {
+        writer.flushNow()
+        setBlocks(prev => prev.map(b => (b.id === id ? { ...b, exitCode: code } : b)))
+      })
+      .catch((e: unknown) => {
+        // 今天 kernel.run 不会 reject（内核与执行器都已兜底），但不能依赖那个假设：
+        // 上面的防重入守卫要求 abortRef 必须被释放，否则一次 reject 就会把整个会话锁死。
+        // 守卫存在的理由是「不变量不依赖未强制的假设」，这里适用同一条理由。
+        writer.write(text(`bash: internal error: ${String(e)}\n`, { color: 'red' }))
+        writer.flushNow()
+        setBlocks(prev => prev.map(b => (b.id === id ? { ...b, exitCode: 1 } : b)))
+      })
+      .finally(() => {
+        // 无论走哪条路径都必须释放，这是防重入守卫成立的前提
+        setRunning(false)
+        abortRef.current = null
+        setPrompt(kernel.prompt())
+      })
   }, [kernel])
 
   const interrupt = useCallback(() => {

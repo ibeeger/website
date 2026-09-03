@@ -25,6 +25,29 @@ vi.mock('../commands', async (importOriginal) => {
   return { ...actual, builtins: [...actual.builtins, pending] }
 })
 
+// createKernel 的一层薄包装：除了给 'force-reject' 这一行命令强制 reject，
+// 其余全部转发给真正的内核。用它来确定性地触发 kernel.run 的意外 reject ——
+// 真实命令路径（executor/kernel 的 try/catch）已经把这类情况兜住了，没有
+// 天然的办法从命令层面制造一个逃逸的 reject，所以在内核构造这一层拦截。
+vi.mock('../core/kernel', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../core/kernel')>()
+  return {
+    ...actual,
+    createKernel(opts: Parameters<typeof actual.createKernel>[0]) {
+      const real = actual.createKernel(opts)
+      return {
+        ctx: real.ctx,
+        prompt: () => real.prompt(),
+        complete: (line: string) => real.complete(line),
+        run(line: string, out: Parameters<typeof real.run>[1], signal: AbortSignal) {
+          if (line === 'force-reject') return Promise.reject(new Error('boom'))
+          return real.run(line, out, signal)
+        },
+      }
+    },
+  }
+})
+
 describe('useTerminal', () => {
   it('初始没有任何 block', () => {
     const { result } = renderHook(() => useTerminal())
@@ -108,5 +131,18 @@ describe('useTerminal', () => {
     await waitFor(() => expect(result.current.blocks[0]!.exitCode).toBe(130))
     expect(result.current.running).toBe(false)
     expect(result.current.blocks).toHaveLength(1)
+  })
+
+  it('kernel.run 意外 reject 时，会话仍能恢复，不会被永久锁死', async () => {
+    const { result } = renderHook(() => useTerminal())
+
+    act(() => { result.current.submit('force-reject') })
+    await waitFor(() => expect(result.current.blocks[0]!.exitCode).not.toBeNull())
+    expect(result.current.running).toBe(false)
+
+    // 关键断言：守卫（abortRef）必须已被释放，否则下面这次 submit 会被永久挡住。
+    act(() => { result.current.submit('echo recovered') })
+    await waitFor(() => expect(result.current.blocks).toHaveLength(2))
+    await waitFor(() => expect(outputOf([result.current.blocks[1]!])).toBe('recovered\n'))
   })
 })
