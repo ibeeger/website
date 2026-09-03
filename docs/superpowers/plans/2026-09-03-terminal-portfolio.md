@@ -7673,6 +7673,12 @@ git commit -m "feat: 移动端适配与快捷键条"
 - Create: `src/seo/vite-plugin-static-resume.ts`
 - Modify: `vite.config.ts`, `index.html`, `src/styles/global.css`, `src/ui/Terminal.tsx`
 - Test: `src/seo/renderStaticResume.test.ts`
+- Test: `src/seo/vite-plugin-static-resume.test.ts` —— 必须包含一条**自动跟随隐藏规则**的测试：
+  从 `src/styles/global.css` 里解析出 `#static-resume { ... }` 的全部属性名，
+  断言 `NOSCRIPT_REVEAL` 对每一个都给出了覆盖。
+  这样以后有人往隐藏规则里加一个新属性（`opacity: 0` 之类），
+  这条测试会立刻变红，而不是让禁用 JS 的访客默默拿到半坏的排版。
+  只断言几个硬编码属性名是不够的 —— 那种测试挡不住「新增属性」这个真实的回归路径。
 
 **Interfaces:**
 - Consumes: 无（`renderStaticResume` 是纯函数，只吃 `Record<string, string>`）
