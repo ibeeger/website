@@ -1,5 +1,5 @@
 import { createPipe } from '../pipe'
-import { formatError } from '../errors'
+import { formatError, vfsMessage } from '../errors'
 import { fileWriter, styled, textOnly } from '../writers'
 import { dirname } from '../vfs/path'
 import { expandWord } from './expand'
@@ -63,17 +63,22 @@ async function runCommand(
   downstream: Writer | null,
   terminal: Writer,
 ): Promise<number> {
-  const argv = cmd.argv.flatMap(w => expandWord(w, ctx))
-  const name = argv[0]
-
-  // 本进程拥有、退出时必须关闭的 writer。不关会让下游 stdin 永久挂起。
+  // toClose 必须先于任何可能抛出的语句建立 —— 否则抛出时下游 stdin 永不终止。
   const toClose: Writer[] = []
   if (downstream) toClose.push(downstream)
 
+  // 永远指向终端的错误出口。重定向可能把 stderr 改到文件，
+  // 但「准备阶段失败」和「落盘失败」必须让用户看见。
+  const fatalOut = styled(terminal, STDERR_STYLE)
+
   let stdout: Writer = downstream ? textOnly(downstream) : terminal
-  let stderr: Writer = styled(terminal, STDERR_STYLE)
+  let stderr: Writer = fatalOut
 
   try {
+    // 展开必须在 try 内：它一旦抛出，异常会逃到 UI，且下游 stdin 永久挂起。
+    const argv = cmd.argv.flatMap(w => expandWord(w, ctx))
+    const name = argv[0]
+
     for (const r of cmd.redirects) {
       const targets = expandWord(r.target, ctx)
       if (targets.length !== 1) {
@@ -84,7 +89,13 @@ async function runCommand(
       const abs = ctx.vfs.resolve(ctx.cwd, raw)
       // 先验父目录，否则错误会推迟到 close() 里被吞掉
       if (!ctx.vfs.isDir(dirname(abs))) {
-        stderr.writeLine(`bash: ${raw}: No such file or directory`)
+        stderr.writeLine(`bash: ${raw}: ${vfsMessage('ENOENT')}`)
+        return 1
+      }
+      // 目标自身是目录时同样要挡住。fileWriter 直到 close() 才碰 VFS，
+      // 而 close() 在 finally 里，那里抛出的 EISDIR 会被吞掉 —— 结果是静默的 exit 0。
+      if (ctx.vfs.isDir(abs)) {
+        stderr.writeLine(`bash: ${raw}: ${vfsMessage('EISDIR')}`)
         return 1
       }
       const fw = fileWriter(ctx.vfs, abs, r.mode === 'append')
@@ -109,9 +120,19 @@ async function runCommand(
       stderr.writeLine(formatError(name, e))
       return 1
     }
+  } catch (e) {
+    // 展开或重定向准备阶段抛出 —— 绝不允许逃到 UI
+    fatalOut.writeLine(formatError('bash', e))
+    return 1
   } finally {
+    // 必须关闭，否则下游进程的 stdin 永远等不到结束
     for (const w of toClose) {
-      try { w.close() } catch { /* 落盘失败不应掩盖原始错误 */ }
+      try {
+        w.close()
+      } catch (e) {
+        // 落盘失败不能静默丢弃，否则用户看到 exit 0 却什么都没发生
+        fatalOut.writeLine(formatError('bash', e))
+      }
     }
   }
 }

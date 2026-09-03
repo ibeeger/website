@@ -149,6 +149,34 @@ describe('重定向', () => {
   })
 })
 
+describe('不变量：管道拆除', () => {
+  it('管道中段的命令自带重定向时，下游仍然终止', async () => {
+    const r = await run('hello > out.txt | upper')
+    expect(r.code).toBe(0)
+    expect(ctx.vfs.readFile('/home/guest/out.txt')).toBe('hello\n')
+    expect(r.out).toBe('')
+  })
+
+  it('命令在持有管道 writer 时抛异常，下游看到流结束而不是挂起', async () => {
+    const r = await run('boom | upper')
+    expect(r.out).toContain('boom: kaboom')
+  })
+})
+
+describe('重定向的目标校验', () => {
+  it('目标是已存在的目录时报错并返回 1', async () => {
+    const r = await run('hello > /home/guest')
+    expect(r.code).toBe(1)
+    expect(r.out).toContain('Is a directory')
+  })
+
+  it('父目录不存在时用统一的错误文案', async () => {
+    const r = await run('hello > /no/such/dir/out.txt')
+    expect(r.code).toBe(1)
+    expect(r.out).toContain('No such file or directory')
+  })
+})
+
 describe('命令列表与短路', () => {
   it('; 顺序执行两者', async () => {
     expect((await run('hello ; hello')).out).toBe('hello\nhello\n')
