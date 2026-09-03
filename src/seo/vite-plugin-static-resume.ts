@@ -26,7 +26,7 @@ function collect(): Record<string, string> {
  * 对所有同 id 元素都生效 —— 禁用 JS 的用户两份都看不见，
  * noscript 这一半等于没做。同时还会产生重复的 JSON-LD。
  */
-const NOSCRIPT_REVEAL = `<noscript><style>
+export const NOSCRIPT_REVEAL = `<noscript><style>
   #static-resume {
     position: static;
     width: auto;
