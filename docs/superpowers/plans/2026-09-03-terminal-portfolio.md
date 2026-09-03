@@ -1669,9 +1669,12 @@ export function lex(input: string): Token[] {
   let touched = false        // 当前单词是否已开始（空引号也算开始）
 
   const flushPart = () => {
-    if (buf !== '') {
+    // bufQuote !== 'none' 也要落段：空的引号（如 ''）没有字符，但仍是一个有效的段。
+    // 推入后必须把 bufQuote 一并复位，否则 `echo a b` 会产生多余的空段。
+    if (buf !== '' || bufQuote !== 'none') {
       parts.push({ text: buf, quote: bufQuote })
       buf = ''
+      bufQuote = 'none'
     }
   }
 
