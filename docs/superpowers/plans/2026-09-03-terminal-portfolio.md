@@ -146,11 +146,26 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['src/**/*.test.{ts,tsx}'],
+    setupFiles: ['src/ui/test-setup.ts'],
   },
 })
 ```
 
 默认 node 环境；需要 DOM 的测试文件首行写 `// @vitest-environment jsdom` 单独切换。不用 `projects` 配置，避免版本差异。
+
+`src/ui/test-setup.ts`：
+
+```ts
+import { afterEach } from 'vitest'
+import { cleanup } from '@testing-library/react'
+
+// testing-library 的自动清理只在检测到全局 afterEach 时才自我注册，
+// 而本项目所有测试文件都显式导入 vitest API。与其为一个局部需求打开 globals，
+// 不如在这里显式卸载上一次 render —— 同一文件里多次 render 时缺了它会互相污染。
+afterEach(cleanup)
+```
+
+**不要改用 `globals: true`。** 21 个测试文件都显式导入 `describe`/`it`/`expect`；打开 globals 会把整个项目的环境改掉来解决一处 DOM 清理需求，还会让裸露的 `describe` 变得含义不明（是有意还是漏了导入）。
 
 `eslint.config.js`：
 
@@ -5790,6 +5805,8 @@ git commit -m "feat: 输入行与终端组装"
 - Create: `src/ui/useHistory.ts`
 - Create: `src/ui/useReverseSearch.ts`
 - Create: `src/ui/useCompletion.ts`
+- Test: `src/ui/useCompletion.test.tsx` —— `commonPrefix` 与候选拼接是纯逻辑，
+  出错时表现为「补全给出的行不对」而不是崩溃，必须有直接的单测
 - Modify: `src/ui/PromptLine.tsx`（补齐全部键位）
 - Modify: `src/ui/Terminal.tsx`（接线）
 - Test: `src/ui/useHistory.test.tsx`
@@ -6148,7 +6165,10 @@ export function useReverseSearch(entries: string[]) {
   }
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (composing) return          // 输入法候选期间一律放行
+    // 两道守卫都要：composing 是我们自己的 composition 事件状态，
+    // isComposing 是 KeyboardEvent 的标准属性。Chrome/Safari 会把「上屏用的那个回车」
+    // 也标成 isComposing=true，只看 React 状态在事件顺序不同的浏览器上会漏。
+    if (composing || e.nativeEvent.isComposing) return
 
     const pos = inputRef.current?.selectionStart ?? value.length
 
