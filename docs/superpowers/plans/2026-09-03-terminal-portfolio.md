@@ -5728,10 +5728,10 @@ export function PromptLine(props: PromptLineProps) {
   border: none;
   outline: none;
   background: transparent;
+  /* 必须与可见文本用同一套字体度量。给这个 input 单独设字号会让点击定位
+     与输入法候选窗按它的字形计算、却用到 14px 的自绘文本上，每字符约 14% 的偏移。
+     iOS 的自动放大问题在触摸设备的媒体查询里靠抬高整个终端的字号解决，见下。 */
   font: inherit;
-  /* iOS Safari 对计算字号小于 16px 的输入框会在聚焦时自动放大页面且不会缩回。
-     这个 input 的字形不可见，所以放大字号不影响自绘的那一行。 */
-  font-size: 16px;
   color: inherit;
   caret-color: transparent;
 }
@@ -7571,7 +7571,11 @@ export function useVisualViewport(): { bottomInset: number } {
     border: 1px solid var(--selection);
     border-radius: 4px;
   }
-  .terminal { font-size: 13px; }
+  /* 16px 而不是更小：iOS Safari 对计算字号小于 16px 的输入框会在聚焦时
+     自动放大页面且不缩回，而「首次点击弹出键盘」正是这套隐藏真 input 设计的目的。
+     抬高整个终端的字号（而不是只抬高那个 input）才能让不可见的 input
+     与可见文本保持同一套字形度量 —— 否则点击定位与输入法候选窗都会偏。 */
+  .terminal { font-size: 16px; }
 }
 
 /* 宽内容横向滚动，绝不让 body 出现横向滚动条 */
