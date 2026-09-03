@@ -830,7 +830,19 @@ git commit -m "feat: 虚拟文件系统的路径运算"
 
 ```ts
 import { describe, it, expect, beforeEach } from 'vitest'
-import { createVfs, emptyDir, VfsError, type VFS } from './vfs'
+import { createVfs, emptyDir, VfsError, type VfsErrorCode, type VFS } from './vfs'
+
+/**
+ * 断言抛出的是带指定 code 的 VfsError。
+ * 不用 toThrowError(expect.objectContaining(...)) —— 非对称匹配器在 toThrow 上的
+ * 支持随版本而变，显式写更稳。
+ */
+function expectVfsError(fn: () => unknown, code: VfsErrorCode) {
+  let thrown: unknown
+  try { fn() } catch (e) { thrown = e }
+  expect(thrown, `期望抛出 VfsError(${code})，但没有抛出`).toBeInstanceOf(VfsError)
+  expect((thrown as VfsError).code).toBe(code)
+}
 
 let vfs: VFS
 
@@ -870,15 +882,11 @@ describe('readFile', () => {
   })
 
   it('文件不存在抛 ENOENT', () => {
-    expect(() => vfs.readFile('/nope')).toThrowError(
-      expect.objectContaining({ code: 'ENOENT' }),
-    )
+    expectVfsError(() => vfs.readFile('/nope'), 'ENOENT')
   })
 
   it('读目录抛 EISDIR', () => {
-    expect(() => vfs.readFile('/home')).toThrowError(
-      expect.objectContaining({ code: 'EISDIR' }),
-    )
+    expectVfsError(() => vfs.readFile('/home'), 'EISDIR')
   })
 })
 
@@ -890,15 +898,11 @@ describe('writeFile', () => {
   })
 
   it('父目录不存在抛 ENOENT', () => {
-    expect(() => vfs.writeFile('/no/such/f.txt', 'x')).toThrowError(
-      expect.objectContaining({ code: 'ENOENT' }),
-    )
+    expectVfsError(() => vfs.writeFile('/no/such/f.txt', 'x'), 'ENOENT')
   })
 
   it('目标是目录时抛 EISDIR', () => {
-    expect(() => vfs.writeFile('/home', 'x')).toThrowError(
-      expect.objectContaining({ code: 'EISDIR' }),
-    )
+    expectVfsError(() => vfs.writeFile('/home', 'x'), 'EISDIR')
   })
 })
 
@@ -922,15 +926,11 @@ describe('list', () => {
   })
 
   it('列出文件抛 ENOTDIR', () => {
-    expect(() => vfs.list('/home/guest/about.md')).toThrowError(
-      expect.objectContaining({ code: 'ENOTDIR' }),
-    )
+    expectVfsError(() => vfs.list('/home/guest/about.md'), 'ENOTDIR')
   })
 
   it('列出不存在的路径抛 ENOENT', () => {
-    expect(() => vfs.list('/nope')).toThrowError(
-      expect.objectContaining({ code: 'ENOENT' }),
-    )
+    expectVfsError(() => vfs.list('/nope'), 'ENOENT')
   })
 })
 
@@ -941,15 +941,11 @@ describe('mkdir', () => {
   })
 
   it('非 recursive 且父目录缺失时抛 ENOENT', () => {
-    expect(() => vfs.mkdir('/a/b/c', false)).toThrowError(
-      expect.objectContaining({ code: 'ENOENT' }),
-    )
+    expectVfsError(() => vfs.mkdir('/a/b/c', false), 'ENOENT')
   })
 
   it('目标已存在时抛 EEXIST', () => {
-    expect(() => vfs.mkdir('/home', false)).toThrowError(
-      expect.objectContaining({ code: 'EEXIST' }),
-    )
+    expectVfsError(() => vfs.mkdir('/home', false), 'EEXIST')
   })
 
   it('recursive 时目标已存在不报错', () => {
@@ -964,9 +960,7 @@ describe('remove', () => {
   })
 
   it('非 recursive 删除非空目录抛 ENOTEMPTY', () => {
-    expect(() => vfs.remove('/home/guest', false)).toThrowError(
-      expect.objectContaining({ code: 'ENOTEMPTY' }),
-    )
+    expectVfsError(() => vfs.remove('/home/guest', false), 'ENOTEMPTY')
   })
 
   it('recursive 时删除整棵子树', () => {
@@ -975,15 +969,11 @@ describe('remove', () => {
   })
 
   it('拒绝删除根，抛 EPERM', () => {
-    expect(() => vfs.remove('/', true)).toThrowError(
-      expect.objectContaining({ code: 'EPERM' }),
-    )
+    expectVfsError(() => vfs.remove('/', true), 'EPERM')
   })
 
   it('删除不存在的路径抛 ENOENT', () => {
-    expect(() => vfs.remove('/nope', false)).toThrowError(
-      expect.objectContaining({ code: 'ENOENT' }),
-    )
+    expectVfsError(() => vfs.remove('/nope', false), 'ENOENT')
   })
 })
 
@@ -5516,8 +5506,11 @@ export type PromptLineProps = {
   onHistoryNext(): void
   onComplete(): void
   onInterrupt(): void
+  onClearScreen(): void
+  onReverseSearch(): void
+  /** 搜索态下用它替换自绘文本；真 input 的值仍是用户键入的查询串。Task 18 接上行为 */
+  displayOverride?: string
   disabled?: boolean
-  // Task 18 会再加 onClearScreen / onReverseSearch / displayOverride
 }
 
 export function PromptLine(props: PromptLineProps) {
@@ -5645,9 +5638,11 @@ export function Terminal() {
         disabled={term.running}
         onChange={setInput}
         onSubmit={line => { term.submit(line); setInput('') }}
-        onHistoryPrev={() => {}}      /* Task 18 接入 */
+        onHistoryPrev={() => {}}      /* 以下四项 Task 18 接入 */
         onHistoryNext={() => {}}
         onComplete={() => {}}
+        onClearScreen={() => {}}
+        onReverseSearch={() => {}}
         onInterrupt={term.interrupt}
       />
       <div ref={bottomRef} />
@@ -6026,14 +6021,7 @@ export function useReverseSearch(entries: string[]) {
 
 - [ ] **Step 5: 补齐 PromptLine 的键位**
 
-在 `PromptLineProps` 中加入三项：
-
-```ts
-  onClearScreen(): void
-  onReverseSearch(): void
-  /** 搜索态下用它替换自绘文本的内容；真 input 的值仍是用户键入的查询串 */
-  displayOverride?: string
-```
+`onClearScreen`、`onReverseSearch`、`displayOverride` 这三个 prop 在 Task 17 已经声明，本任务只接上行为。
 
 自绘部分改为读 `displayOverride ?? value`：
 
@@ -8095,8 +8083,9 @@ git commit -m "feat: 彩蛋命令"
 **Files:**
 - Create: `README.md`
 - Create: `.github/workflows/deploy.yml`
-- Modify: `vite.config.ts`
 - Test: 无新测试；本任务的验收是构建产物本身
+
+`vite.config.ts` 不需要改动 —— `base` 在 Task 1 就已按 `VITE_BASE` 配好，Task 23 已注入插件。
 
 **Interfaces:**
 - Consumes: 全部前置任务
