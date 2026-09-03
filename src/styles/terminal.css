@@ -10,20 +10,46 @@
   color: var(--fg);
 }
 
+/* 按键条只在没有 hover 能力的设备（触摸屏）上出现 */
+.mobile-keybar { display: none; }
+
 @media (hover: none) {
   /* 16px 而不是更小：iOS Safari 对计算字号小于 16px 的输入框会在聚焦时
      自动放大页面且不缩回，而「首次点击弹出键盘」正是这套隐藏真 input 设计的目的。
      抬高整个终端的字号（而不是只抬高那个 input）才能让不可见的 input
      与可见文本保持同一套字形度量 —— 否则点击定位与输入法候选窗都会偏。 */
   .terminal { font-size: 16px; }
+
+  .mobile-keybar {
+    display: flex;
+    gap: 0.4rem;
+    position: sticky;
+    bottom: 0;
+    padding: 0.5rem 0;
+    overflow-x: auto;
+    background: var(--bg);
+  }
+  .mobile-keybar button {
+    flex: 0 0 auto;
+    min-width: 3rem;
+    min-height: 2.5rem;       /* 触摸目标不小于 44px 的一半，配合 padding 达标 */
+    padding: 0.4rem 0.6rem;
+    font: inherit;
+    color: var(--fg);
+    background: var(--selection);
+    border: 1px solid var(--selection);
+    border-radius: 4px;
+  }
 }
 
-/* 输出必须保留空白与换行，同时允许长行横向滚动而不破坏对齐 */
+/* 输出必须保留空白与换行，同时允许长行横向滚动而不破坏对齐；
+   宽内容横向滚动，绝不让 body 出现横向滚动条 */
 .block-output,
 .block-input {
   white-space: pre-wrap;
   word-break: break-word;
 }
+.block-output { overflow-x: auto; }
 
 .boot { color: var(--green); white-space: pre; overflow-x: auto; }
 

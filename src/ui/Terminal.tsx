@@ -6,6 +6,8 @@ import { useHistory } from './useHistory'
 import { useReverseSearch } from './useReverseSearch'
 import { useCompletion } from './useCompletion'
 import { BootSequence } from './BootSequence'
+import { MobileKeyBar, type MobileKey } from './MobileKeyBar'
+import { useVisualViewport } from './useVisualViewport'
 
 const BANNER = [
   '  _                      _             _ ',
@@ -26,6 +28,7 @@ export function Terminal() {
   const history = useHistory(term.history)
   const search = useReverseSearch(term.history)
   const runComplete = useCompletion(term.complete)
+  const { bottomInset } = useVisualViewport()
 
   const motd = useMemo(() => {
     try { return term.readMotd() } catch { return '' }
@@ -45,11 +48,33 @@ export function Terminal() {
     history.reset()
   }
 
+  const handleMobileKey = (k: MobileKey) => {
+    switch (k) {
+      case 'tab': { const r = runComplete(input); setInput(r.line); setHint(r.hint); return }
+      case 'ctrl-c': term.interrupt(); setInput(''); setHint([]); history.reset(); return
+      case 'up': setInput(history.prev(input)); setHint([]); return
+      case 'down': setInput(history.next()); setHint([]); return
+      default: {
+        // 插到光标当前所在位置，而不是无条件拼到行尾——否则用户光标停在
+        // 行中间时点一下按键条，字符会跑到看不见的地方去（跟真实键盘的
+        // 行为不一致）。inputRef 由 Terminal 持有并转交给了 PromptLine，
+        // 按键条的按钮又在 mousedown/touchstart 就 preventDefault，所以
+        // 点击这一刻焦点与 selectionStart 仍留在真实输入框上，读得到。
+        const pos = inputRef.current?.selectionStart ?? input.length
+        const next = input.slice(0, pos) + k + input.slice(pos)
+        setInput(next)
+        const caretAt = pos + k.length
+        queueMicrotask(() => inputRef.current?.setSelectionRange(caretAt, caretAt))
+      }
+    }
+  }
+
   return (
     <div
       className="terminal"
       role="application"
       aria-label="交互式终端"
+      style={{ paddingBottom: bottomInset }}
       // 点击终端里任意位置都聚焦输入框：这是唯一的焦点恢复手段（尤其是移动端，
       // 一行高的 .promptline 几乎点不中），所以覆盖面要大于那一行。
       onClick={() => inputRef.current?.focus()}
@@ -103,6 +128,7 @@ export function Terminal() {
         }}
         onClearScreen={term.clearScreen}
       />}
+      {booted && <MobileKeyBar onKey={handleMobileKey} />}
       <div ref={bottomRef} />
     </div>
   )

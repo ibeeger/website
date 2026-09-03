@@ -37,4 +37,18 @@ describe('Terminal', () => {
     fireEvent.change(input, { target: { value: 'x' } })
     expect(input.value).toBe('x')
   })
+
+  it('移动端按键条在光标当前位置插入字符，而不是无条件拼到行尾', () => {
+    render(<Terminal />)
+    const input = screen.getByRole('textbox') as HTMLInputElement
+
+    fireEvent.change(input, { target: { value: 'cd projects' } })
+    // 把光标移到 "cd pro|jects" 中间
+    input.setSelectionRange(6, 6)
+    fireEvent.select(input)
+
+    fireEvent.click(screen.getByRole('button', { name: '/' }))
+
+    expect(input.value).toBe('cd pro/jects')
+  })
 })
