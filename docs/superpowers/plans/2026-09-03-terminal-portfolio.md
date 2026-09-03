@@ -7224,6 +7224,18 @@ const LINES = ['first', 'second', 'third']
 beforeEach(() => { sessionStorage.clear(); vi.useFakeTimers() })
 afterEach(() => { vi.useRealTimers() })
 
+/**
+ * React 只在 act() 调用的边界冲刷 effect，不是在里面每个 fake timer 回调之后。
+ * BootSequence 是「一个 setTimeout 推进一行、effect 再排下一个 setTimeout」的链，
+ * 所以单次 act(() => vi.advanceTimersByTime(5000)) 只会走完一跳。
+ * 必须用多次小步 act() 把链条真正播完。
+ */
+function advanceInSteps(totalMs: number, stepMs = 100) {
+  for (let elapsed = 0; elapsed < totalMs; elapsed += stepMs) {
+    act(() => { vi.advanceTimersByTime(stepMs) })
+  }
+}
+
 describe('BootSequence', () => {
   it('逐行显示', () => {
     render(<BootSequence lines={LINES} onDone={vi.fn()} />)
@@ -7235,7 +7247,7 @@ describe('BootSequence', () => {
   it('全部显示完后回调 onDone', () => {
     const onDone = vi.fn()
     render(<BootSequence lines={LINES} onDone={onDone} />)
-    act(() => { vi.advanceTimersByTime(5000) })
+    advanceInSteps(5000)
     expect(onDone).toHaveBeenCalledOnce()
   })
 
@@ -7249,7 +7261,7 @@ describe('BootSequence', () => {
 
   it('播放完成后写入 sessionStorage', () => {
     render(<BootSequence lines={LINES} onDone={vi.fn()} />)
-    act(() => { vi.advanceTimersByTime(5000) })
+    advanceInSteps(5000)
     expect(sessionStorage.getItem(BOOT_STORAGE_KEY)).toBe('1')
   })
 
@@ -7561,7 +7573,14 @@ export function useVisualViewport(): { bottomInset: number } {
       case 'ctrl-c': term.interrupt(); setInput(''); setHint([]); return
       case 'up': setInput(history.prev(input)); return
       case 'down': setInput(history.next()); return
-      default: setInput(input + k)
+      default: {
+        // 插到光标当前所在位置，而不是无条件拼到行尾 —— 否则用户光标停在
+        // 行中间时点一下按键条，字符会跑到看不见的地方去，与真实键盘不一致。
+        // 按键条的按钮在 mousedown/touchstart 就 preventDefault，所以点击这一刻
+        // 焦点与 selectionStart 仍留在真实输入框上，读得到。
+        const pos = inputRef.current?.selectionStart ?? input.length
+        setInput(input.slice(0, pos) + k + input.slice(pos))
+      }
     }
   }
 ```
