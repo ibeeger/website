@@ -19,6 +19,8 @@
 - **每个 `node` 类型的 Chunk 必须提供 `toText()`**，它是必填字段而非可选优化。缺失会导致管道下游崩溃。
 - **命令永不允许把异常抛到 UI 层。** executor 兜底捕获所有异常，转为 exit code 1 + stderr 输出。任何命令崩溃都不得白屏。
 - **一命令一文件**，放在 `src/commands/<分类>/<命令名>.ts`。
+- **退出码约定：** 0 成功、1 运行时失败（文件不存在等）、2 用法或参数错误。**唯一的例外是 `grep`**：文件读取失败时它返回 2 而非 1，因为真实 GNU grep 就是如此（grep 用 1 表示「无匹配」、2 表示任何错误）。这是刻意的仿真，不是不一致。
+- **行切分只有一处实现**：`src/commands/lib.ts` 的 `splitLines`。head/tail/wc/grep/sort/uniq 六个命令的行数口径必须一致，各自复制一份会让改动其一就静默破坏一致性。
 - 不引入 UI 组件库，不引入 CSS-in-JS。样式用原生 CSS + CSS 变量。
 - 测试默认在 node 环境运行；需要 DOM 的测试文件首行加 `// @vitest-environment jsdom`。
 - 提交信息前缀：`feat:` / `fix:` / `test:` / `chore:` / `docs:`。每个任务至少一次提交。
@@ -3354,6 +3356,17 @@ export function parseFlags(
   return { flags, operands, bad }
 }
 
+/**
+ * 把文本切成行，丢掉末尾换行造成的空串。
+ * 六个命令（head/tail/wc/grep/sort/uniq）的行数口径必须一致，
+ * 所以这里是唯一的实现 —— 各自复制一份的话，改动其一就会静默破坏一致性。
+ */
+export function splitLines(text: string): string[] {
+  const lines = text.split('\n')
+  if (lines[lines.length - 1] === '') lines.pop()
+  return lines
+}
+
 /** 把 stdin 全部读成一个字符串。富节点按 toText() 降级。 */
 export async function readAll(stdin: AsyncIterable<Chunk> | null): Promise<string> {
   if (!stdin) return ''
@@ -4013,7 +4026,7 @@ export const tail: Process = {
 `src/commands/fs/wc.ts`：
 
 ```ts
-import { parseFlags, readSources } from '../lib'
+import { parseFlags, readSources, splitLines } from '../lib'
 import { completePath } from '../../core/complete'
 import { vfsMessage } from '../../core/errors'
 import type { Process } from '../../core/process'
@@ -4032,9 +4045,11 @@ export const wc: Process = {
     const { parts, errors } = await readSources(io, ctx, operands)
 
     for (const p of parts) {
-      const lines = p.text === '' ? 0 : p.text.split('\n').length - (p.text.endsWith('\n') ? 1 : 0)
+      const lines = splitLines(p.text).length
       const words = p.text.trim() === '' ? 0 : p.text.trim().split(/\s+/).length
-      const bytes = p.text.length
+      // 必须按 UTF-8 字节数计，不能用 .length —— 本站内容是中文，
+      // 后者数的是 UTF-16 码元，会把真实字节数少报约三分之二。
+      const bytes = new TextEncoder().encode(p.text).length
 
       const cols: number[] = []
       if (showAll || flags.has('l')) cols.push(lines)
@@ -4455,6 +4470,11 @@ function toRegex(pattern: string): RegExp {
   return new RegExp(`^${escaped}$`)
 }
 
+/** 拼接路径，避免 `find /` 产出 `//home` 这类双斜杠。 */
+function joinPath(base: string, name: string): string {
+  return base.endsWith('/') ? base + name : `${base}/${name}`
+}
+
 export const find: Process = {
   name: 'find',
   description: '递归查找文件',
@@ -4484,7 +4504,7 @@ export const find: Process = {
       if (!re || re.test(inode.name)) io.stdout.writeLine(path)
       if (inode.kind !== 'dir') return
       for (const child of [...inode.children.values()].sort((a, b) => a.name.localeCompare(b.name))) {
-        walk(child, `${path}/${child.name}`)
+        walk(child, joinPath(path, child.name))
       }
     }
 
@@ -4494,7 +4514,7 @@ export const find: Process = {
     }
     if (st.kind === 'dir') {
       for (const child of [...st.children.values()].sort((a, b) => a.name.localeCompare(b.name))) {
-        walk(child, `${start}/${child.name}`)
+        walk(child, joinPath(start, child.name))
       }
     }
     return 0
@@ -4670,7 +4690,7 @@ git commit -m "feat: 目录树与文件写入命令"
 `src/commands/sys/sys.test.ts`：
 
 ```ts
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { help } from './help'
 import { man } from './man'
 import { whoami } from './whoami'
@@ -4695,6 +4715,13 @@ const documented: Process = {
 beforeEach(() => {
   ctx = makeTestCtx()
   for (const p of [visible, secret, documented, help, man, which]) ctx.registry.register(p)
+})
+
+// date 那条用了假时钟，clear 那条 spyOn 的是模块级共享的 testHost。
+// 断言一旦抛出，两者都会泄漏到后续 describe 块 —— 必须在这里统一收拾。
+afterEach(() => {
+  vi.useRealTimers()
+  vi.restoreAllMocks()
 })
 
 describe('help', () => {
