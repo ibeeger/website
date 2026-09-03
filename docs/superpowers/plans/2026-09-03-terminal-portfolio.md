@@ -54,7 +54,7 @@
 ### Task 1: 工程骨架与核心契约
 
 **Files:**
-- Create: `package.json`, `tsconfig.json`, `tsconfig.node.json`, `vite.config.ts`, `vitest.config.ts`, `eslint.config.js`, `index.html`
+- Create: `package.json`, `tsconfig.json`, `vite.config.ts`, `vitest.config.ts`, `eslint.config.js`, `index.html`
 - Create: `src/main.tsx`, `src/App.tsx`, `src/styles/global.css`
 - Create: `src/core/process.ts`
 - Test: `src/core/process.test.ts`
@@ -70,7 +70,7 @@
 ```bash
 pnpm init
 pnpm add react react-dom
-pnpm add -D typescript@5.9.3 vite @vitejs/plugin-react-swc vitest jsdom \
+pnpm add -D typescript@5.9.3 vite @vitejs/plugin-react vitest jsdom \
   @types/react @types/react-dom @eslint/js eslint typescript-eslint \
   eslint-plugin-react-hooks @testing-library/react @testing-library/dom
 ```
@@ -125,7 +125,7 @@ pnpm add -D typescript@5.9.3 vite @vitejs/plugin-react-swc vitest jsdom \
 
 ```ts
 import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react-swc'
+import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
@@ -137,7 +137,7 @@ export default defineConfig({
 
 ```ts
 import { defineConfig } from 'vitest/config'
-import react from '@vitejs/plugin-react-swc'
+import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
