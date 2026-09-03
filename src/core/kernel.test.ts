@@ -139,4 +139,14 @@ describe('complete', () => {
   it('空输入时列出全部命令', () => {
     expect(kernel.complete('').candidates.sort()).toEqual(['cd', 'echo'])
   })
+
+  it('命令自带 complete 抛异常时返回空候选而非冒泡', () => {
+    kernel.ctx.registry.register({
+      name: 'boom', description: 'boom',
+      complete() { throw new Error('boom') },
+      async run() { return 0 },
+    })
+    expect(() => kernel.complete('boom x')).not.toThrow()
+    expect(kernel.complete('boom x')).toEqual({ candidates: [], replaceFrom: 5 })
+  })
 })

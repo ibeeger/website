@@ -98,7 +98,13 @@ export function createKernel(opts: {
       const argv = before.split(/\s+/)
       const proc = registry.get(argv[0]!)
       if (proc?.complete) {
-        return { candidates: proc.complete([...argv, frag], idleCtx), replaceFrom }
+        // 命令自带的补全器同样不许把异常抛到 UI —— run() 有执行器兜底，
+        // complete() 没有，而它每按一次 Tab 就被调用一次。
+        try {
+          return { candidates: proc.complete([...argv, frag], idleCtx), replaceFrom }
+        } catch {
+          return { candidates: [], replaceFrom }
+        }
       }
       return { candidates: completePath(frag, idleCtx), replaceFrom }
     },
