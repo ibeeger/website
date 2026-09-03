@@ -7701,9 +7701,14 @@ const FILES = {
 const html = () => renderStaticResume(FILES, { name: '张三', url: 'https://example.com' })
 
 describe('renderStaticResume', () => {
-  it('输出语义化标题', () => {
-    expect(html()).toContain('<h1>')
-    expect(html()).toContain('关于我')
+  it('整份文档只有一个 h1，且是人名', () => {
+    const out = html()
+    expect(out).toContain('<h1>张三</h1>')
+    expect((out.match(/<h1>/g) ?? []).length).toBe(1)
+  })
+
+  it('内容文件的一级标题降为 h2', () => {
+    expect(html()).toContain('<h2>关于我</h2>')
   })
 
   it('包含项目内容', () => {
@@ -7772,9 +7777,10 @@ function mdToHtml(source: string): string {
 
   for (const raw of source.split('\n')) {
     const line = raw.trimEnd()
-    if (line.startsWith('### ')) { closeList(); out.push(`<h3>${linkify(escapeHtml(line.slice(4)))}</h3>`); continue }
-    if (line.startsWith('## ')) { closeList(); out.push(`<h2>${linkify(escapeHtml(line.slice(3)))}</h2>`); continue }
-    if (line.startsWith('# ')) { closeList(); out.push(`<h1>${linkify(escapeHtml(line.slice(2)))}</h1>`); continue }
+    // 标题整体降一级：整份简历的 h1 是人名，内容文件的 # 是章节标题。
+    if (line.startsWith('### ')) { closeList(); out.push(`<h4>${linkify(escapeHtml(line.slice(4)))}</h4>`); continue }
+    if (line.startsWith('## ')) { closeList(); out.push(`<h3>${linkify(escapeHtml(line.slice(3)))}</h3>`); continue }
+    if (line.startsWith('# ')) { closeList(); out.push(`<h2>${linkify(escapeHtml(line.slice(2)))}</h2>`); continue }
     if (/^[-*] /.test(line)) {
       if (!inList) { out.push('<ul>'); inList = true }
       out.push(`<li>${linkify(escapeHtml(line.slice(2)))}</li>`)
@@ -7817,6 +7823,9 @@ export function renderStaticResume(
 
   return [
     '<section id="static-resume">',
+    // 整份文档只应有一个 h1（人名）。各内容文件的标题在 mdToHtml 里整体降一级，
+    // 否则 about/contact/每个项目都会各自产生一个 h1。
+    `<h1>${escapeHtml(opts.name)}</h1>`,
     sections.join('\n'),
     '</section>',
     `<script type="application/ld+json">${jsonLd}</script>`,
@@ -7850,6 +7859,27 @@ function collect(): Record<string, string> {
 }
 
 /**
+ * 关掉 JS 时，<noscript> 里的 <style> 会被应用。用它把那份唯一的简历
+ * 从 visually-hidden 还原成正常可见，而不是再注入第二份。
+ *
+ * 为什么不注入第二份：两份会带同一个 id，而 `#static-resume` 的裁剪规则
+ * 对所有同 id 元素都生效 —— 禁用 JS 的用户两份都看不见，
+ * noscript 这一半等于没做。同时还会产生重复的 JSON-LD。
+ */
+const NOSCRIPT_REVEAL = `<noscript><style>
+  #static-resume {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip-path: none;
+    white-space: normal;
+    padding: 1rem;
+  }
+  #root { display: none; }
+</style></noscript>`
+
+/**
  * 构建时把静态简历注入 index.html。
  * 运行时渲染在这里是行不通的 —— 不执行 JS 的爬虫拿不到任何内容。
  */
@@ -7862,7 +7892,7 @@ export function staticResumePlugin(opts: { name: string; url?: string }): Plugin
         const resume = renderStaticResume(collect(), opts)
         return html
           .replace('<!--STATIC_RESUME-->', resume)
-          .replace('<!--NOSCRIPT_RESUME-->', `<noscript>${resume}</noscript>`)
+          .replace('<!--NOSCRIPT_RESUME-->', NOSCRIPT_REVEAL)
       },
     },
   }
