@@ -1,0 +1,30 @@
+{
+  "groups": [
+    {
+      "name": "语言",
+      "items": [
+        { "name": "TypeScript", "level": 5 },
+        { "name": "JavaScript", "level": 5 },
+        { "name": "Rust", "level": 3 },
+        { "name": "Go", "level": 3 }
+      ]
+    },
+    {
+      "name": "前端",
+      "items": [
+        { "name": "React", "level": 5 },
+        { "name": "Vite", "level": 4 },
+        { "name": "CSS", "level": 4 },
+        { "name": "WebAssembly", "level": 3 }
+      ]
+    },
+    {
+      "name": "工程",
+      "items": [
+        { "name": "Node.js", "level": 4 },
+        { "name": "Git", "level": 4 },
+        { "name": "CI/CD", "level": 3 }
+      ]
+    }
+  ]
+}
