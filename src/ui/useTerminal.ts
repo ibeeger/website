@@ -3,6 +3,7 @@ import { createKernel, type Kernel } from '../core/kernel'
 import { buildInitialVfs } from '../core/vfs/bootstrap'
 import { loadContent } from '../content'
 import { builtins } from '../commands'
+import { uiCommands } from './commands'
 import { text } from '../core/process'
 import { createUiHost, type UiHooks } from './host'
 import { createBlockWriter } from './blockWriter'
@@ -53,7 +54,7 @@ export function useTerminal() {
   const [kernel] = useState<Kernel>(() => createKernel({
     vfs: buildInitialVfs(loadContent()),
     host: createUiHost(hooksBox),
-    commands: builtins,        // Task 20 会改成 [...builtins, ...uiCommands]
+    commands: [...builtins, ...uiCommands],
   }))
 
   const [prompt, setPrompt] = useState(() => kernel.prompt())

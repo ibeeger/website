@@ -77,3 +77,22 @@
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+.md-h1 { font-weight: 700; color: var(--blue); }
+.md-h2 { font-weight: 700; color: var(--cyan); }
+.md-h3 { font-weight: 600; }
+.md-li { padding-left: 1ch; }
+.md a, .project-meta a { color: var(--cyan); text-decoration: underline; }
+.md a:hover, .project-meta a:hover { color: var(--yellow); }
+
+.project-card { margin: 0.5em 0; }
+.project-name { font-weight: 700; color: var(--green); }
+.project-summary { opacity: 0.85; }
+.project-meta { opacity: 0.75; }
+.project-meta-item { margin-right: 2ch; }
+.project-meta-label { color: var(--magenta); }
+
+.skill-group-name { font-weight: 700; color: var(--blue); margin-top: 0.5em; }
+.skill-row { display: flex; gap: 2ch; }
+.skill-bar { color: var(--green); letter-spacing: 1px; }
+.skill-bar-empty { opacity: 0.3; }
