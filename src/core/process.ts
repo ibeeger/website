@@ -1,0 +1,84 @@
+import type { ReactNode } from 'react'
+
+export type Style = {
+  color?: string      // 语义色名（'red' | 'green' | 'blue' | 'dim' ...），映射到主题 CSS 变量
+  bold?: boolean
+  dim?: boolean
+  underline?: boolean
+}
+
+export type Chunk =
+  | { type: 'text'; text: string; style?: Style }
+  | { type: 'node'; node: ReactNode; toText: () => string }
+
+export interface Writer {
+  write(chunk: Chunk): void
+  writeText(text: string, style?: Style): void
+  writeLine(text: string, style?: Style): void
+  close(): void
+}
+
+export interface IO {
+  argv: string[]
+  stdin: AsyncIterable<Chunk> | null
+  stdout: Writer
+  stderr: Writer
+}
+
+export interface Host {
+  clear(): void
+  setTheme(name: string): void
+  listThemes(): string[]
+  currentTheme(): string
+}
+
+export interface Env {
+  get(name: string): string | undefined
+  set(name: string, value: string): void
+  unset(name: string): void
+  all(): Record<string, string>
+}
+
+export interface Registry {
+  register(p: Process): void
+  get(name: string): Process | undefined
+  list(): Process[]
+}
+
+export interface Ctx {
+  cwd: string                    // 可变：cd 修改它
+  lastExitCode: number           // 可变：$? 读取它
+  history: string[]              // 可变：history 命令读取它
+  readonly env: Env
+  readonly vfs: unknown          // Task 5 建好 vfs.ts 后改为 VFS，见下方说明
+  readonly registry: Registry
+  readonly host: Host
+  readonly signal: AbortSignal   // Ctrl+C
+}
+
+export interface Process {
+  name: string
+  description: string
+  usage?: string
+  complete?(argv: string[], ctx: Ctx): string[]
+  run(io: IO, ctx: Ctx): Promise<number>
+}
+
+// ---- chunk 构造器 ----
+
+export function text(s: string, style?: Style): Chunk {
+  return style ? { type: 'text', text: s, style } : { type: 'text', text: s }
+}
+
+export function line(s: string, style?: Style): Chunk {
+  return text(s + '\n', style)
+}
+
+export function node(n: ReactNode, toText: () => string): Chunk {
+  return { type: 'node', node: n, toText }
+}
+
+/** 把任意 chunk 降级为纯文本 —— 管道与重定向的下游只认文本。 */
+export function chunkToText(c: Chunk): string {
+  return c.type === 'text' ? c.text : c.toText()
+}
