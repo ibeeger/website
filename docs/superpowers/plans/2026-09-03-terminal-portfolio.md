@@ -1982,6 +1982,14 @@ export function parse(tokens: Token[]): Ast {
 
   if (argv.length > 0 || redirects.length > 0 || commands.length > 0) {
     closePipeline(null, 'newline')
+  } else if (items.length > 0) {
+    // 输入以 && / || 结尾时，那一项已在循环里被 closePipeline 关闭并重置了
+    // argv/redirects/commands，上面的条件看不到任何残留 —— 必须单独校验最后一项。
+    // 末尾的 `;` 合法（bash 允许），末尾的 `&&` / `||` 不合法（没有下一项可连）。
+    const last = items[items.length - 1]!
+    if (last.joinNext === '&&' || last.joinNext === '||') {
+      throw new ShellSyntaxError("syntax error near unexpected token `newline'")
+    }
   }
 
   return { items }
@@ -2239,7 +2247,7 @@ function patternToRegex(pattern: string): RegExp {
 
 /**
  * 对路径的最后一段求 glob。
- * 限制（刻意）：只对最后一段生效，`*​/*.ts` 这类跨层模式不支持。
+ * 限制（刻意）：只对路径的最后一段求值。'src/*.ts' 可以，跨目录层级的模式不支持。
  */
 function glob(pattern: string, ctx: Ctx): string[] {
   const base = basename(pattern)
