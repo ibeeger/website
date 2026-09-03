@@ -4670,7 +4670,7 @@ git commit -m "feat: 目录树与文件写入命令"
 `src/commands/sys/sys.test.ts`：
 
 ```ts
-import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { help } from './help'
 import { man } from './man'
 import { whoami } from './whoami'
@@ -4714,8 +4714,10 @@ describe('man', () => {
     expect((await runCmd(man, ['man', 'documented'], ctx)).out).toContain('documented [选项]')
   })
 
-  it('没有 usage 时回落到描述', async () => {
-    expect((await runCmd(man, ['man', 'visible'], ctx)).out).toContain('看得见')
+  it('没有 usage 时「用法」一节回落为命令名，而不是描述', async () => {
+    const out = (await runCmd(man, ['man', 'visible'], ctx)).out
+    expect(out).toContain('visible —— 看得见')      // 名称一节带描述
+    expect(out).toContain('用法\n    visible\n')   // 用法一节回落为命令名
   })
 
   it('命令不存在时返回 1', async () => {
