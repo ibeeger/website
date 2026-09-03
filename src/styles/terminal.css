@@ -28,3 +28,32 @@
 .t-blue { color: var(--blue); }
 .t-magenta { color: var(--magenta); }
 .t-cyan { color: var(--cyan); }
+
+.promptline { position: relative; display: flex; white-space: pre-wrap; word-break: break-word; }
+.promptline-text { flex: 1; }
+
+/* 透明覆盖层：接管所有键盘与 IME 事件，但视觉上不存在 */
+.promptline-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  opacity: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  caret-color: transparent;
+}
+
+.cursor {
+  background: var(--cursor);
+  color: var(--bg);
+  animation: blink 1.1s step-end infinite;
+}
+
+@keyframes blink { 50% { background: transparent; color: inherit; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .cursor { animation: none; }
+}

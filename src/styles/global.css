@@ -10,6 +10,7 @@
   --blue: #7aa2f7;
   --magenta: #bb9af7;
   --cyan: #7dcfff;
+  --cursor: #c0caf5;
 }
 
 * { box-sizing: border-box; }

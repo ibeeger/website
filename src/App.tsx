@@ -1,3 +1,5 @@
+import { Terminal } from './ui/Terminal'
+
 export default function App() {
-  return <div>terminal</div>
+  return <Terminal />
 }
