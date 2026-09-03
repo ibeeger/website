@@ -61,6 +61,7 @@ export interface Process {
   name: string
   description: string
   usage?: string
+  hidden?: boolean          // 为真时不出现在 help 列表中（彩蛋命令用）
   complete?(argv: string[], ctx: Ctx): string[]
   run(io: IO, ctx: Ctx): Promise<number>
 }
