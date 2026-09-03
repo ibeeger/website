@@ -51,4 +51,35 @@ describe('Terminal', () => {
 
     expect(input.value).toBe('cd pro/jects')
   })
+
+  it('反向搜索开启时，点按键条的 ^C 会关闭搜索框（跟物理键盘 Ctrl+C 一样）', () => {
+    render(<Terminal />)
+    const input = screen.getByRole('textbox') as HTMLInputElement
+
+    // 进入反向搜索
+    fireEvent.keyDown(input, { key: 'r', ctrlKey: true })
+    expect(screen.queryByText(/reverse-i-search/)).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: '^C' }))
+
+    expect(screen.queryByText(/reverse-i-search/)).toBeNull()
+  })
+
+  it('反向搜索开启时，点按键条的 Tab 不会修改（背后隐藏的）input 草稿', () => {
+    render(<Terminal />)
+    const input = screen.getByRole('textbox') as HTMLInputElement
+
+    // 先在正常态打出草稿，再进入反向搜索——草稿此时藏在 search.query 后面
+    fireEvent.change(input, { target: { value: 'ec' } })
+    fireEvent.keyDown(input, { key: 'r', ctrlKey: true })
+    expect(screen.queryByText(/reverse-i-search/)).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Tab' }))
+
+    // 用物理键盘的 Escape 退出搜索（onInterrupt 本来就正确处理了 search.active，
+    // 不掺和被测的 Tab 分支），让隐藏的 input 草稿重新显形
+    fireEvent.keyDown(input, { key: 'Escape' })
+    expect(screen.queryByText(/reverse-i-search/)).toBeNull()
+    expect(input.value).toBe('ec')
+  })
 })

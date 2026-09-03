@@ -48,12 +48,33 @@ export function Terminal() {
     history.reset()
   }
 
+  // 键盘回调与按键条必须走同一份逻辑。各写一份的话，像 search.active 这样的
+  // 守卫很容易只加在一边 —— 反向搜索时点屏幕上的 ^C 不会关闭搜索框、点 Tab
+  // 会拿过时的 input 去补全，而物理键盘上一切正常。
+  const doComplete = () => {
+    if (search.active) return
+    const r = runComplete(input)
+    setInput(r.line)
+    setHint(r.hint)
+  }
+
+  const doInterrupt = () => {
+    if (search.active) { search.cancel(); return }
+    term.interrupt()
+    setInput('')
+    setHint([])
+    history.reset()
+  }
+
+  const doHistoryPrev = () => { setHint([]); setInput(history.prev(input)) }
+  const doHistoryNext = () => { setHint([]); setInput(history.next()) }
+
   const handleMobileKey = (k: MobileKey) => {
     switch (k) {
-      case 'tab': { const r = runComplete(input); setInput(r.line); setHint(r.hint); return }
-      case 'ctrl-c': term.interrupt(); setInput(''); setHint([]); history.reset(); return
-      case 'up': setInput(history.prev(input)); setHint([]); return
-      case 'down': setInput(history.next()); setHint([]); return
+      case 'tab': doComplete(); return
+      case 'ctrl-c': doInterrupt(); return
+      case 'up': doHistoryPrev(); return
+      case 'down': doHistoryNext(); return
       default: {
         // 插到光标当前所在位置，而不是无条件拼到行尾——否则用户光标停在
         // 行中间时点一下按键条，字符会跑到看不见的地方去（跟真实键盘的
@@ -110,22 +131,11 @@ export function Terminal() {
           }
           submit(input)
         }}
-        onHistoryPrev={() => { setInput(history.prev(input)); setHint([]) }}
-        onHistoryNext={() => { setInput(history.next()); setHint([]) }}
-        onComplete={() => {
-          if (search.active) return
-          const r = runComplete(input)
-          setInput(r.line)
-          setHint(r.hint)
-        }}
+        onHistoryPrev={doHistoryPrev}
+        onHistoryNext={doHistoryNext}
+        onComplete={doComplete}
         onReverseSearch={() => (search.active ? search.next() : search.start())}
-        onInterrupt={() => {
-          if (search.active) { search.cancel(); return }
-          term.interrupt()
-          setInput('')
-          setHint([])
-          history.reset()
-        }}
+        onInterrupt={doInterrupt}
         onClearScreen={term.clearScreen}
       />}
       {booted && <MobileKeyBar onKey={handleMobileKey} />}
