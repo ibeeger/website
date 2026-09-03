@@ -43,6 +43,14 @@ describe('stat / isDir', () => {
   it('根始终是目录', () => {
     expect(vfs.isDir('/')).toBe(true)
   })
+
+  it('路径中间段是文件时 isDir 返回 false 而不是抛异常', () => {
+    expect(vfs.isDir('/home/guest/about.md/nope')).toBe(false)
+  })
+
+  it('路径中间段是文件时 stat 返回 null', () => {
+    expect(vfs.stat('/home/guest/about.md/nope')).toBeNull()
+  })
 })
 
 describe('readFile', () => {

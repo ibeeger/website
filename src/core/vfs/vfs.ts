@@ -77,7 +77,12 @@ export function createVfs(root: DirInode, now: () => number = Date.now): VFS {
     },
 
     isDir(abs) {
-      return lookup(abs)?.kind === 'dir'
+      // 与 stat 一致：查询类方法不抛异常。中间段是文件时，它当然不是目录。
+      try {
+        return lookup(abs)?.kind === 'dir'
+      } catch {
+        return false
+      }
     },
 
     readFile(abs) {
