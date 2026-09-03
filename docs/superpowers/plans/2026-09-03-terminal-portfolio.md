@@ -2789,7 +2789,7 @@ git commit -m "feat: 管道执行器与重定向"
 
 ### Task 11: 内核门面与路径补全
 
-UI 只认识这一个模块。此任务完成后，整个 shell 内核在没有任何真实命令、没有任何 React 代码的情况下已可端到端工作。
+UI 从内核只导入两个模块：`kernel.ts`（`createKernel` / `Kernel`）与 `process.ts`（`Chunk` / `Writer` / `Host` / `Process` / `Ctx` 等契约类型）。**UI 不得导入 `vfs/`、`shell/`、`pipe.ts`、`registry.ts` 中的任何东西** —— 那些是内核内部实现。此任务完成后，整个 shell 内核在没有任何真实命令、没有任何 React 代码的情况下已可端到端工作。
 
 **Files:**
 - Create: `src/core/complete.ts`
@@ -3105,7 +3105,13 @@ export function createKernel(opts: {
       const argv = before.split(/\s+/)
       const proc = registry.get(argv[0]!)
       if (proc?.complete) {
-        return { candidates: proc.complete([...argv, frag], idleCtx), replaceFrom }
+        // 命令自带的补全器同样不许把异常抛到 UI —— run() 有执行器兜底，
+        // complete() 没有，而它每按一次 Tab 就被调用一次。
+        try {
+          return { candidates: proc.complete([...argv, frag], idleCtx), replaceFrom }
+        } catch {
+          return { candidates: [], replaceFrom }
+        }
       }
       return { candidates: completePath(frag, idleCtx), replaceFrom }
     },
