@@ -25,6 +25,8 @@
   word-break: break-word;
 }
 
+.boot { color: var(--green); white-space: pre; overflow-x: auto; }
+
 .prompt { color: var(--prompt); font-weight: 600; }
 
 .t-bold { font-weight: 700; }

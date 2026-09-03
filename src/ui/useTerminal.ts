@@ -113,5 +113,8 @@ export function useTerminal() {
     // 就看见新提交的命令。换成 `session.history = [...]` 会悄悄破坏两者。
     history: kernel.ctx.history,
     clearScreen: useCallback(() => { setBlocks([]) }, []),
+    readMotd: useCallback(() => {
+      try { return kernel.ctx.vfs.readFile('/etc/motd') } catch { return '' }
+    }, [kernel]),
   }
 }

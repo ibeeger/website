@@ -1,20 +1,40 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTerminal } from './useTerminal'
 import { OutputBlock } from './OutputBlock'
 import { PromptLine } from './PromptLine'
 import { useHistory } from './useHistory'
 import { useReverseSearch } from './useReverseSearch'
 import { useCompletion } from './useCompletion'
+import { BootSequence } from './BootSequence'
+
+const BANNER = [
+  '  _                      _             _ ',
+  ' | |_ ___ _ __ _ __ ___ (_)_ __   __ _| |',
+  " | __/ _ \\ '__| '_ ` _ \\| | '_ \\ / _` | |",
+  ' | ||  __/ |  | | | | | | | | | | (_| | |',
+  '  \\__\\___|_|  |_| |_| |_|_|_| |_|\\__,_|_|',
+  '',
+]
 
 export function Terminal() {
   const term = useTerminal()
   const [input, setInput] = useState('')
   const [hint, setHint] = useState<string[]>([])
+  const [booted, setBooted] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const history = useHistory(term.history)
   const search = useReverseSearch(term.history)
   const runComplete = useCompletion(term.complete)
+
+  const motd = useMemo(() => {
+    try { return term.readMotd() } catch { return '' }
+  }, [term])
+
+  const bootLines = useMemo(
+    () => [...BANNER, ...motd.split('\n')],
+    [motd],
+  )
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ block: 'end' }) }, [term.blocks, hint])
 
@@ -34,9 +54,10 @@ export function Terminal() {
       // 一行高的 .promptline 几乎点不中），所以覆盖面要大于那一行。
       onClick={() => inputRef.current?.focus()}
     >
+      {!booted && <BootSequence lines={bootLines} onDone={() => setBooted(true)} />}
       {term.blocks.map(b => <OutputBlock key={b.id} block={b} />)}
       {hint.length > 0 && <div className="completion-hint">{hint.join('  ')}</div>}
-      <PromptLine
+      {booted && <PromptLine
         prompt={search.active ? `(reverse-i-search)\`${search.query}': ` : term.prompt}
         value={search.active ? search.query : input}
         displayOverride={search.active ? search.match : undefined}
@@ -81,7 +102,7 @@ export function Terminal() {
           history.reset()
         }}
         onClearScreen={term.clearScreen}
-      />
+      />}
       <div ref={bottomRef} />
     </div>
   )
