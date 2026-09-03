@@ -1,3 +1,17 @@
+@import './terminal.css';
+
+:root {
+  --bg: #16161e;
+  --fg: #c0caf5;
+  --prompt: #9ece6a;
+  --red: #f7768e;
+  --green: #9ece6a;
+  --yellow: #e0af68;
+  --blue: #7aa2f7;
+  --magenta: #bb9af7;
+  --cyan: #7dcfff;
+}
+
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; }
-body { background: #16161e; color: #c0caf5; }
+body { background: var(--bg); color: var(--fg); }
