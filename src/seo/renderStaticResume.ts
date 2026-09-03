@@ -13,7 +13,13 @@ function linkify(escaped: string): string {
   return escaped.replace(URL_RE, url => `<a href="${url}">${url}</a>`)
 }
 
-/** 极简 Markdown → HTML。只处理标题、无序列表、段落。 */
+/**
+ * 极简 Markdown → HTML。只处理标题、无序列表、段落。
+ *
+ * 标题整体降一级（# → h2，## → h3，### → h4）：整份简历只应该有一个 h1
+ * ——姓名，由 renderStaticResume 单独输出。每个内容文件自己的标题只是
+ * 章节标题，不该跟文档标题抢 h1。
+ */
 function mdToHtml(source: string): string {
   const out: string[] = []
   let inList = false
@@ -22,9 +28,9 @@ function mdToHtml(source: string): string {
 
   for (const raw of source.split('\n')) {
     const line = raw.trimEnd()
-    if (line.startsWith('### ')) { closeList(); out.push(`<h3>${linkify(escapeHtml(line.slice(4)))}</h3>`); continue }
-    if (line.startsWith('## ')) { closeList(); out.push(`<h2>${linkify(escapeHtml(line.slice(3)))}</h2>`); continue }
-    if (line.startsWith('# ')) { closeList(); out.push(`<h1>${linkify(escapeHtml(line.slice(2)))}</h1>`); continue }
+    if (line.startsWith('### ')) { closeList(); out.push(`<h4>${linkify(escapeHtml(line.slice(4)))}</h4>`); continue }
+    if (line.startsWith('## ')) { closeList(); out.push(`<h3>${linkify(escapeHtml(line.slice(3)))}</h3>`); continue }
+    if (line.startsWith('# ')) { closeList(); out.push(`<h2>${linkify(escapeHtml(line.slice(2)))}</h2>`); continue }
     if (/^[-*] /.test(line)) {
       if (!inList) { out.push('<ul>'); inList = true }
       out.push(`<li>${linkify(escapeHtml(line.slice(2)))}</li>`)
@@ -45,7 +51,9 @@ export function renderStaticResume(
   files: Record<string, string>,
   opts: { name: string; url?: string },
 ): string {
-  const sections: string[] = []
+  // 整份文档只有一个 h1——姓名。内容文件自己的标题在 mdToHtml 里已经降了一级，
+  // 不会再跟这个 h1 竞争。
+  const sections: string[] = [`<h1>${escapeHtml(opts.name)}</h1>`]
 
   if (files['about.md']) sections.push(mdToHtml(files['about.md']))
 

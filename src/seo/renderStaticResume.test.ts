@@ -10,9 +10,12 @@ const FILES = {
 const html = () => renderStaticResume(FILES, { name: '张三', url: 'https://example.com' })
 
 describe('renderStaticResume', () => {
-  it('输出语义化标题', () => {
-    expect(html()).toContain('<h1>')
-    expect(html()).toContain('关于我')
+  it('输出语义化标题：唯一的 h1 是姓名，内容标题降一级', () => {
+    const out = html()
+    const h1s = out.match(/<h1>/g) ?? []
+    expect(h1s).toHaveLength(1)
+    expect(out).toContain('<h1>张三</h1>')
+    expect(out).toContain('<h2>关于我</h2>')
   })
 
   it('包含项目内容', () => {
