@@ -12,6 +12,10 @@ export function parseProject(source: string, fallbackName: string): Project {
     .filter(l => /^[-*] /.test(l))
     .map(l => {
       const body = l.slice(2)
+      // 整行就是一个裸 URL 时不能按冒号切：search 找的是第一个冒号，
+      // 也就是 `https:` 里的那个，会切出 { label:'https', value:'//...' }，
+      // 于是既不再匹配 isUrl（渲染成死文本），toText 也吐出被切坏的串。
+      if (/^https?:\/\//.test(body)) return { label: '', value: body }
       const sep = body.search(/[:：]/)
       return sep < 0
         ? { label: '', value: body }
