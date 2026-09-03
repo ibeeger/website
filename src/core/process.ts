@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import type { VFS } from './vfs/vfs'
 
 export type Style = {
   color?: string      // 语义色名（'red' | 'green' | 'blue' | 'dim' ...），映射到主题 CSS 变量
@@ -50,7 +51,7 @@ export interface Ctx {
   lastExitCode: number           // 可变：$? 读取它
   history: string[]              // 可变：history 命令读取它
   readonly env: Env
-  readonly vfs: unknown          // Task 5 建好 vfs.ts 后改为 VFS，见下方说明
+  readonly vfs: VFS
   readonly registry: Registry
   readonly host: Host
   readonly signal: AbortSignal   // Ctrl+C
@@ -82,3 +83,5 @@ export function node(n: ReactNode, toText: () => string): Chunk {
 export function chunkToText(c: Chunk): string {
   return c.type === 'text' ? c.text : c.toText()
 }
+
+export type { VFS } from './vfs/vfs'
