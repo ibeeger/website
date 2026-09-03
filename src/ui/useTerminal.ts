@@ -42,6 +42,13 @@ export function useTerminal() {
   const [prompt, setPrompt] = useState(() => kernel.prompt())
 
   const submit = useCallback((line: string) => {
+    // abortRef 与 running 都是单槽，所以同一时刻只允许一条命令在跑。
+    // 不在这里挡住的话：命令 A 结束时的收尾会把 running 置假、把 abortRef 清空，
+    // 而此时命令 B 还在跑 —— B 就再也中断不了了。
+    // UI 层的 disabled 是第二道防线，不能是唯一一道：useTerminal 是公开 hook，
+    // 它的状态机不变量不该依赖调用方记得传那个 prop。
+    if (abortRef.current !== null) return
+
     const id = `b${idRef.current++}`
     const block: Block = {
       id, prompt: kernel.prompt(), input: line, chunks: [], exitCode: null,
