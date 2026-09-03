@@ -5280,7 +5280,7 @@ export type Block = {
 `src/ui/useTerminal.ts`：
 
 ```ts
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { text } from '../core/process'
 import { createKernel, type Kernel } from '../core/kernel'
 import { buildInitialVfs } from '../core/vfs/bootstrap'
@@ -6586,15 +6586,21 @@ export const theme: Process = {
 ```ts
   const { theme, setTheme, themes } = useTheme()
 
-  hooksBox.current = {
-    clear: () => setBlocks([]),
-    setTheme,
-    listThemes: () => themes,
-    currentTheme: () => theme,
-  }
+  // 用无依赖数组的 effect，而不是在渲染期直接写这个 box。
+  // 渲染期写入会触发 eslint-plugin-react-hooks 的 immutability/refs 规则，
+  // 而本项目的命令全部由用户事件触发（回车、移动端快捷键条）—— 那总是发生在
+  // effect 冲刷之后，所以 effect 形式既合规又足够及时。
+  useEffect(() => {
+    hooksBox.current = {
+      clear: () => setBlocks([]),
+      setTheme,
+      listThemes: () => themes,
+      currentTheme: () => theme,
+    }
+  })
 ```
 
-把这段放在 `kernelRef` 初始化**之前**，确保内核创建时 `hooksBox.current` 已就绪。
+`hooksBox` 的初始值（Task 16 建立）已经包含可用的 `clear`，所以首次渲染到首个 effect 冲刷之间即使有人调用也不会炸。
 
 同时把 `theme` 追加进 `src/commands/index.ts` 的 `builtins`，并删掉 `src/styles/global.css` 里 Task 16 留下的临时 `:root` 变量块 —— 现在由 `useTheme` 在运行时注入。为避免首帧无色，在 `index.html` 的 `<head>` 里保留一份内联的默认变量：
 
@@ -6981,9 +6987,13 @@ export type SkillGroup = { name: string; items: { name: string; level: number }[
 
 const MAX_LEVEL = 5
 
+export function clampLevel(level: number): number {
+  return Math.max(0, Math.min(MAX_LEVEL, level))
+}
+
 export function skillsToText(groups: SkillGroup[]): string {
   return groups
-    .map(g => `${g.name}\n` + g.items.map(i => `  ${i.name}  ${i.level}/${MAX_LEVEL}`).join('\n'))
+    .map(g => `${g.name}\n` + g.items.map(i => `  ${i.name}  ${clampLevel(i.level)}/${MAX_LEVEL}`).join('\n'))
     .join('\n') + '\n'
 }
 
@@ -6994,19 +7004,25 @@ export function SkillBars({ groups }: { groups: SkillGroup[] }) {
       {groups.map(g => (
         <div key={g.name} className="skill-group">
           <div className="skill-group-name">{g.name}</div>
-          {g.items.map(item => (
-            <div key={item.name} className="skill-row">
-              <span className="skill-name">{item.name.padEnd(width)}</span>
-              <span
-                className="skill-bar"
-                role="img"
-                aria-label={`${item.name} ${item.level} / ${MAX_LEVEL}`}
-              >
-                {'█'.repeat(item.level)}
-                <span className="skill-bar-empty">{'░'.repeat(MAX_LEVEL - item.level)}</span>
-              </span>
-            </div>
-          ))}
+          {g.items.map(item => {
+            // skills.json 由作者手写。level 打成 6 会让 '░'.repeat(-1) 抛 RangeError，
+            // 而这是在 React 渲染期抛的 —— 执行器的兜底捕获不到（node chunk 由 React
+            // 稍后渲染，不在 proc.run 的 try 里），结果是白屏而不是一条错误信息。
+            const lvl = Math.max(0, Math.min(MAX_LEVEL, item.level))
+            return (
+              <div key={item.name} className="skill-row">
+                <span className="skill-name">{item.name.padEnd(width)}</span>
+                <span
+                  className="skill-bar"
+                  role="img"
+                  aria-label={`${item.name} ${lvl} / ${MAX_LEVEL}`}
+                >
+                  {'█'.repeat(lvl)}
+                  <span className="skill-bar-empty">{'░'.repeat(MAX_LEVEL - lvl)}</span>
+                </span>
+              </div>
+            )
+          })}
         </div>
       ))}
     </div>
