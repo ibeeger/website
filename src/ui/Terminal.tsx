@@ -105,7 +105,9 @@ export function Terminal() {
       onClick={() => inputRef.current?.focus()}
     >
       {!booted && <BootSequence lines={bootLines} onDone={() => setBooted(true)} />}
-      {term.blocks.map(b => <OutputBlock key={b.id} block={b} />)}
+      <div aria-live="polite" aria-atomic="false">
+        {term.blocks.map(b => <OutputBlock key={b.id} block={b} />)}
+      </div>
       {hint.length > 0 && <div className="completion-hint">{hint.join('  ')}</div>}
       {booted && <PromptLine
         prompt={search.active ? `(reverse-i-search)\`${search.query}': ` : term.prompt}
