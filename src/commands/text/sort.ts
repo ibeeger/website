@@ -1,4 +1,4 @@
-import { parseFlags, readSources } from '../lib'
+import { parseFlags, readSources, splitLines } from '../lib'
 import { vfsMessage } from '../../core/errors'
 import type { Process } from '../../core/process'
 
@@ -12,11 +12,7 @@ export const sort: Process = {
     if (bad) { io.stderr.writeLine(`sort: invalid option -- '${bad}'`); return 2 }
 
     const { parts, errors } = await readSources(io, ctx, operands)
-    const lines = parts.flatMap(p => {
-      const ls = p.text.split('\n')
-      if (ls[ls.length - 1] === '') ls.pop()
-      return ls
-    })
+    const lines = parts.flatMap(p => splitLines(p.text))
 
     lines.sort((a, b) => a.localeCompare(b))
     if (flags.has('r')) lines.reverse()

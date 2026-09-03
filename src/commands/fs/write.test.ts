@@ -48,6 +48,18 @@ describe('find', () => {
   it('起点不存在时返回 1', async () => {
     expect((await runCmd(find, ['find', 'nope'], ctx)).code).toBe(1)
   })
+
+  it('起点为根目录时不产生双斜杠', async () => {
+    const r = await runCmd(find, ['find', '/'], ctx)
+    expect(r.out).toContain('/home/guest/about.md')
+    expect(r.out).not.toContain('//')
+  })
+
+  it('起点带尾斜杠时不产生双斜杠', async () => {
+    const r = await runCmd(find, ['find', 'projects/'], ctx)
+    expect(r.out).toContain('projects/p.md')
+    expect(r.out).not.toContain('//')
+  })
 })
 
 describe('touch', () => {

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { help } from './help'
 import { man } from './man'
 import { whoami } from './whoami'
@@ -23,6 +23,13 @@ const documented: Process = {
 beforeEach(() => {
   ctx = makeTestCtx()
   for (const p of [visible, secret, documented, help, man, which]) ctx.registry.register(p)
+})
+
+// date 那条用了假时钟，clear 那条 spyOn 的是模块级共享的 testHost。
+// 断言一旦抛出，两者都会泄漏到后续 describe 块 —— 必须在这里统一收拾。
+afterEach(() => {
+  vi.useRealTimers()
+  vi.restoreAllMocks()
 })
 
 describe('help', () => {
@@ -77,7 +84,6 @@ describe('whoami / uname / date', () => {
     vi.setSystemTime(new Date('2026-09-03T10:00:00Z'))
     const r = await runCmd(date, ['date'], ctx)
     expect(r.out).toContain('2026')
-    vi.useRealTimers()
   })
 })
 

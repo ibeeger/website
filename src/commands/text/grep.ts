@@ -1,4 +1,4 @@
-import { parseFlags, readSources } from '../lib'
+import { parseFlags, readSources, splitLines } from '../lib'
 import { completePath } from '../../core/complete'
 import { vfsMessage } from '../../core/errors'
 import type { Process } from '../../core/process'
@@ -32,8 +32,7 @@ export const grep: Process = {
     const multi = parts.filter(p => p.name !== '-').length > 1
 
     for (const p of parts) {
-      const lines = p.text.split('\n')
-      if (lines[lines.length - 1] === '') lines.pop()
+      const lines = splitLines(p.text)
       lines.forEach((lineText, idx) => {
         if (re.test(lineText) === invert) return
         matched = true

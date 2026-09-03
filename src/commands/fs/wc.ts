@@ -1,4 +1,4 @@
-import { parseFlags, readSources } from '../lib'
+import { parseFlags, readSources, splitLines } from '../lib'
 import { completePath } from '../../core/complete'
 import { vfsMessage } from '../../core/errors'
 import type { Process } from '../../core/process'
@@ -17,9 +17,11 @@ export const wc: Process = {
     const { parts, errors } = await readSources(io, ctx, operands)
 
     for (const p of parts) {
-      const lines = p.text === '' ? 0 : p.text.split('\n').length - (p.text.endsWith('\n') ? 1 : 0)
+      const lines = splitLines(p.text).length
       const words = p.text.trim() === '' ? 0 : p.text.trim().split(/\s+/).length
-      const bytes = p.text.length
+      // 必须按 UTF-8 字节数计，不能用 .length —— 本站内容是中文，
+      // 后者数的是 UTF-16 码元，会把真实字节数少报约三分之二。
+      const bytes = new TextEncoder().encode(p.text).length
 
       const cols: number[] = []
       if (showAll || flags.has('l')) cols.push(lines)

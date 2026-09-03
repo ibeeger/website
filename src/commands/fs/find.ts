@@ -11,6 +11,11 @@ function toRegex(pattern: string): RegExp {
   return new RegExp(`^${escaped}$`)
 }
 
+/** 拼接路径，避免 `find /` 产出 `//home` 这类双斜杠。 */
+function joinPath(base: string, name: string): string {
+  return base.endsWith('/') ? base + name : `${base}/${name}`
+}
+
 export const find: Process = {
   name: 'find',
   description: '递归查找文件',
@@ -40,7 +45,7 @@ export const find: Process = {
       if (!re || re.test(inode.name)) io.stdout.writeLine(path)
       if (inode.kind !== 'dir') return
       for (const child of [...inode.children.values()].sort((a, b) => a.name.localeCompare(b.name))) {
-        walk(child, `${path}/${child.name}`)
+        walk(child, joinPath(path, child.name))
       }
     }
 
@@ -50,7 +55,7 @@ export const find: Process = {
     }
     if (st.kind === 'dir') {
       for (const child of [...st.children.values()].sort((a, b) => a.name.localeCompare(b.name))) {
-        walk(child, `${start}/${child.name}`)
+        walk(child, joinPath(start, child.name))
       }
     }
     return 0

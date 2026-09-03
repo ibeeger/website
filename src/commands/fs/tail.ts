@@ -1,4 +1,4 @@
-import { readSources } from '../lib'
+import { readSources, splitLines } from '../lib'
 import { takeCount } from './head'
 import { completePath } from '../../core/complete'
 import { vfsMessage } from '../../core/errors'
@@ -15,8 +15,7 @@ export const tail: Process = {
     if (count === null) { io.stderr.writeLine('tail: invalid number of lines'); return 2 }
     const { parts, errors } = await readSources(io, ctx, rest)
     for (const p of parts) {
-      const lines = p.text.split('\n')
-      if (lines[lines.length - 1] === '') lines.pop()
+      const lines = splitLines(p.text)
       io.stdout.writeText(lines.slice(-count).map(l => l + '\n').join(''))
     }
     for (const e of errors) io.stderr.writeLine(`tail: ${e.path}: ${vfsMessage(e.code)}`)

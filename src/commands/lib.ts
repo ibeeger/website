@@ -30,6 +30,17 @@ export function parseFlags(
   return { flags, operands, bad }
 }
 
+/**
+ * 把文本切成行，丢掉末尾换行造成的空串。
+ * 六个命令（head/tail/wc/grep/sort/uniq）的行数口径必须一致，
+ * 所以这里是唯一的实现 —— 各自复制一份的话，改动其一就会静默破坏一致性。
+ */
+export function splitLines(text: string): string[] {
+  const lines = text.split('\n')
+  if (lines[lines.length - 1] === '') lines.pop()
+  return lines
+}
+
 /** 把 stdin 全部读成一个字符串。富节点按 toText() 降级。 */
 export async function readAll(stdin: AsyncIterable<Chunk> | null): Promise<string> {
   if (!stdin) return ''

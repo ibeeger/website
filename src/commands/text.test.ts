@@ -68,6 +68,13 @@ describe('wc', () => {
   it('读 stdin 时不带文件名', async () => {
     expect((await runCmd(wc, ['wc', '-l'], ctx, 'a\nb\n')).out.trim()).toBe('2')
   })
+
+  it('-c 按 UTF-8 字节数计，多字节字符下与字符数不同', async () => {
+    // '中文\n'：2 个汉字各占 3 字节 + 1 个换行字节 = 7 字节，
+    // 而 .length（UTF-16 码元数）只有 3 —— 用来钉住必须按字节而非码元计数。
+    const r = await runCmd(wc, ['wc', '-c'], ctx, '中文\n')
+    expect(r.out.trim()).toBe('7')
+  })
 })
 
 describe('echo', () => {
@@ -117,6 +124,13 @@ describe('grep', () => {
     const r = await runCmd(grep, ['grep', '[', 'about.md'], ctx)
     expect(r.code).toBe(2)
     expect(r.err).toContain('invalid')
+  })
+
+  it('文件不存在时返回 2（与 cat 的 1 不同，是有意为之）', async () => {
+    // 真实 grep 对任何错误都退出 2，把 1 留给「无匹配」；
+    // cat 这类命令没有「无匹配」这回事，文件缺失就是唯一的失败，退出 1。
+    expect((await runCmd(grep, ['grep', 'pattern', 'nope'], ctx)).code).toBe(2)
+    expect((await runCmd(cat, ['cat', 'nope'], ctx)).code).toBe(1)
   })
 })
 
