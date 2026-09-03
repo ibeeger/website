@@ -37,11 +37,12 @@ export function useTerminal() {
 
   // 每次渲染都刷新，这正是 Task 16 那层间接存在的原因：命令可能在这次渲染的
   // effect 冲刷之前就运行，box 必须已经持有本次渲染的最新回调。
-  // eslint-plugin-react-hooks@7 的 immutability 规则会把这行当成「直接改写
-  // useState 返回值」而报错——但 hooksBox 从来不是渲染输出的一部分，它是刻意
-  // 逃出 React 状态模型之外的一个稳定容器（见上面 Task 16 的注释），react-hooks
-  // 规则的静态分析无法区分这种情况。已向控制者报告，此处保留刻意豁免。
-  // eslint-disable-next-line react-hooks/immutability -- 见上：hooksBox 是 Task 16 设计的稳定可变容器，不是渲染输出
+  // eslint-plugin-react-hooks@7 的 immutability 规则会标记对 useState 派生值的
+  // 任何改动（不分渲染期还是 effect 内，时机不能豁免）；改用真正的 useRef 则会让
+  // createUiHost(hooksBox) 在惰性初始化里触发 refs 规则。三种 hook 写法都试过，
+  // 没有一种能同时满足两条规则 —— 这里是一条正确的模式与一条保守的静态规则冲突，
+  // 因此就地窄范围抑制，而不是改写成更差的结构或全局关掉规则。
+  // eslint-disable-next-line react-hooks/immutability
   hooksBox.current = {
     clear: () => setBlocks([]),
     setTheme,
