@@ -7595,6 +7595,10 @@ export function useVisualViewport(): { bottomInset: number } {
       case 'up': doHistoryPrev(); return
       case 'down': doHistoryNext(); return
       default: {
+        // 搜索态下这些符号应当进入查询串 —— 物理键盘上敲 `/` 会走 onChange
+        // 到 search.type()，按键条没有理由不一致。而这几个符号恰恰是手机键盘
+        // 最难打的，所以「搜索时按了没反应」是最差的选择。
+        if (search.active) { search.type(search.query + k); return }
         // 插到光标当前所在位置，而不是无条件拼到行尾 —— 否则用户光标停在
         // 行中间时点一下按键条，字符会跑到看不见的地方去，与真实键盘不一致。
         // 按键条的按钮在 mousedown/touchstart 就 preventDefault，所以点击这一刻
