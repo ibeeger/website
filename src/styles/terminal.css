@@ -57,3 +57,10 @@
 @media (prefers-reduced-motion: reduce) {
   .cursor { animation: none; }
 }
+
+.completion-hint {
+  color: var(--fg);
+  opacity: 0.65;
+  white-space: pre-wrap;
+  word-break: break-word;
+}

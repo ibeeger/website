@@ -87,5 +87,9 @@ export function useTerminal() {
 
   const complete = useCallback((line: string) => kernel.complete(line), [kernel])
 
-  return { blocks, running, prompt, submit, interrupt, complete }
+  return {
+    blocks, running, prompt, submit, interrupt, complete,
+    history: kernel.ctx.history,
+    clearScreen: useCallback(() => { setBlocks([]) }, []),
+  }
 }

@@ -26,21 +26,52 @@ export function PromptLine(props: PromptLineProps) {
   const syncCaret = () => setCaret(inputRef.current?.selectionStart ?? value.length)
   useEffect(syncCaret, [value])
 
+  const setAndFocus = (next: string, caretAt: number) => {
+    onChange(next)
+    queueMicrotask(() => {
+      inputRef.current?.setSelectionRange(caretAt, caretAt)
+      setCaret(caretAt)
+    })
+  }
+
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    // 输入法候选期间，所有按键都属于输入法，一律放行
-    if (composing) return
+    if (composing) return          // 输入法候选期间一律放行
+
+    const pos = inputRef.current?.selectionStart ?? value.length
 
     if (e.key === 'Enter') { e.preventDefault(); onSubmit(value); return }
+    if (e.key === 'Escape') { e.preventDefault(); props.onInterrupt(); return }
     if (e.key === 'Tab') { e.preventDefault(); props.onComplete(); return }
     if (e.key === 'ArrowUp') { e.preventDefault(); props.onHistoryPrev(); return }
     if (e.key === 'ArrowDown') { e.preventDefault(); props.onHistoryNext(); return }
-    if (e.ctrlKey && e.key === 'c') { e.preventDefault(); props.onInterrupt(); return }
+
+    if (e.ctrlKey) {
+      switch (e.key) {
+        case 'c': e.preventDefault(); props.onInterrupt(); return
+        case 'l': e.preventDefault(); props.onClearScreen(); return
+        case 'r': e.preventDefault(); props.onReverseSearch(); return
+        case 'a': e.preventDefault(); setAndFocus(value, 0); return
+        case 'e': e.preventDefault(); setAndFocus(value, value.length); return
+        case 'u': e.preventDefault(); setAndFocus(value.slice(pos), 0); return
+        case 'k': e.preventDefault(); setAndFocus(value.slice(0, pos), pos); return
+        case 'w': {
+          e.preventDefault()
+          const left = value.slice(0, pos)
+          // 先吃掉尾部空格，再吃掉一个词
+          const trimmed = left.replace(/\S+\s*$/, '')
+          setAndFocus(trimmed + value.slice(pos), trimmed.length)
+          return
+        }
+      }
+    }
+
     queueMicrotask(syncCaret)
   }
 
-  const before = value.slice(0, caret)
-  const at = value.slice(caret, caret + 1) || ' '
-  const after = value.slice(caret + 1)
+  const shown = props.displayOverride ?? value
+  const before = shown.slice(0, caret)
+  const at = shown.slice(caret, caret + 1) || ' '
+  const after = shown.slice(caret + 1)
 
   return (
     <div className="promptline" onClick={() => inputRef.current?.focus()}>
