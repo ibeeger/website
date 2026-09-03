@@ -5595,11 +5595,18 @@ describe('PromptLine', () => {
     expect(container.querySelector('.cursor')).toBeTruthy()
   })
 
-  it('真 input 是透明但可聚焦的', () => {
+  it('真 input 可以获得焦点', () => {
+    // 不要断言 getComputedStyle 的 display/visibility：jsdom 从不加载项目样式表，
+    // 那两个值永远是 UA 默认值，无论组件写成什么样都会通过 —— 形同虚设。
+    // 直接验真正要保证的性质：它能拿到焦点。
     const { input } = setup()
-    const style = getComputedStyle(input)
-    expect(style.display).not.toBe('none')
-    expect(style.visibility).not.toBe('hidden')
+    input.focus()
+    expect(document.activeElement).toBe(input)
+  })
+
+  it('隐藏手法靠的是 class，而不是 display/visibility', () => {
+    const { input } = setup()
+    expect(input.className).toBe('promptline-input')
   })
 })
 ```
@@ -5629,8 +5636,13 @@ export type PromptLineProps = {
   onReverseSearch(): void
   /** 搜索态下用它替换自绘文本；真 input 的值仍是用户键入的查询串。Task 18 接上行为 */
   displayOverride?: string
-  disabled?: boolean
+  /** 搜索态下自绘光标该落在 displayOverride 的哪一位（真 input 的 caret 指的是查询串） */
+  displayCaret?: number
 }
+
+// 刻意没有 disabled prop：禁用会让浏览器移走焦点，而没有任何东西把焦点拿回来 ——
+// 第一条命令之后输入就死了，手机键盘每次都收起，且 Ctrl+C 恰在最需要时收不到事件。
+// 「同一时刻只跑一条命令」由 useTerminal 里的 abortRef 守卫保证，那才是正确的位置。
 
 export function PromptLine(props: PromptLineProps) {
   const { prompt, value, onChange, onSubmit } = props
@@ -5665,29 +5677,33 @@ export function PromptLine(props: PromptLineProps) {
         {before}
         <span className="cursor">{at}</span>
         {after}
-      </span>
-      {/*
-        真实 input：透明但可聚焦。承接键盘、剪贴板与输入法事件。
-        不能用 display:none / visibility:hidden —— 那样无法聚焦，移动端也不会弹键盘。
-      */}
+        {/*
+          真实 input：透明但可聚焦。承接键盘、剪贴板与输入法事件。
+          不能用 display:none / visibility:hidden —— 那样无法聚焦，移动端也不会弹键盘。
+          必须放在 .promptline-text 内部：它是绝对定位的基准，放到外面会让
+          输入法候选窗与点击定位相对可见文本整体偏移一个提示符的宽度。
+        */}
       <input
         ref={inputRef}
         className="promptline-input"
         value={value}
-        disabled={props.disabled}
         onChange={e => onChange(e.target.value)}
         onKeyDown={onKeyDown}
         onKeyUp={syncCaret}
         onSelect={syncCaret}
         onCompositionStart={() => setComposing(true)}
         onCompositionEnd={() => { setComposing(false); syncCaret() }}
+        // 组合被中途放弃（手机上切走应用）不会触发 compositionend，
+        // 那样 composing 会永远为真、此后每个按键包括回车都被静默吞掉。
+        onBlur={() => setComposing(false)}
         autoFocus
         autoCapitalize="off"
         autoCorrect="off"
         autoComplete="off"
         spellCheck={false}
-        aria-label="终端命令输入"
-      />
+          aria-label="终端命令输入"
+        />
+      </span>
     </div>
   )
 }
@@ -5696,8 +5712,12 @@ export function PromptLine(props: PromptLineProps) {
 追加到 `src/styles/terminal.css`：
 
 ```css
-.promptline { position: relative; display: flex; white-space: pre-wrap; word-break: break-word; }
-.promptline-text { flex: 1; }
+.promptline { display: flex; white-space: pre-wrap; word-break: break-word; }
+
+/* 覆盖层的定位基准必须是文本区而不是整行：若把它铺满整行（含提示符），
+   真 input 的文字原点就落在提示符下方 —— 中文输入法的候选窗会锚在那里而不是
+   用户正看着的方块光标下，点击定位光标也会整体偏移一个提示符的宽度。 */
+.promptline-text { flex: 1; position: relative; }
 
 /* 透明覆盖层：接管所有键盘与 IME 事件，但视觉上不存在 */
 .promptline-input {
@@ -5709,6 +5729,9 @@ export function PromptLine(props: PromptLineProps) {
   outline: none;
   background: transparent;
   font: inherit;
+  /* iOS Safari 对计算字号小于 16px 的输入框会在聚焦时自动放大页面且不会缩回。
+     这个 input 的字形不可见，所以放大字号不影响自绘的那一行。 */
+  font-size: 16px;
   color: inherit;
   caret-color: transparent;
 }
@@ -6147,10 +6170,13 @@ export function useReverseSearch(entries: string[]) {
 自绘部分改为读 `displayOverride ?? value`：
 
 ```tsx
+  // 搜索态下 shown 是匹配到的历史行，而 caret 指的是查询串里的位置 ——
+  // 直接拿它去切 shown 会把光标画在毫无意义的偏移上。
   const shown = props.displayOverride ?? value
-  const before = shown.slice(0, caret)
-  const at = shown.slice(caret, caret + 1) || ' '
-  const after = shown.slice(caret + 1)
+  const drawnCaret = props.displayCaret ?? caret
+  const before = shown.slice(0, drawnCaret)
+  const at = shown.slice(drawnCaret, drawnCaret + 1) || ' '
+  const after = shown.slice(drawnCaret + 1)
 ```
 
 然后把 `onKeyDown` 替换为：
@@ -6165,18 +6191,24 @@ export function useReverseSearch(entries: string[]) {
   }
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    // 两道守卫都要：composing 是我们自己的 composition 事件状态，
-    // isComposing 是 KeyboardEvent 的标准属性。Chrome/Safari 会把「上屏用的那个回车」
-    // 也标成 isComposing=true，只看 React 状态在事件顺序不同的浏览器上会漏。
+    // 三道守卫：composing 是我们自己的 composition 事件状态；isComposing 是标准属性
+    // （Chrome/Safari 把「上屏用的那个回车」标成 true）；keyCode 229 / key==='Process'
+    // 是 Android 软键盘在组合进行中却不设 isComposing 时的信号 —— 少了它，
+    // 手机上一次回车可能提交半成品的拼音。
     if (composing || e.nativeEvent.isComposing) return
+    if (e.nativeEvent.keyCode === 229 || e.key === 'Process') return
 
     const pos = inputRef.current?.selectionStart ?? value.length
 
-    if (e.key === 'Enter') { e.preventDefault(); onSubmit(value); return }
-    if (e.key === 'Escape') { e.preventDefault(); props.onInterrupt(); return }
-    if (e.key === 'Tab') { e.preventDefault(); props.onComplete(); return }
-    if (e.key === 'ArrowUp') { e.preventDefault(); props.onHistoryPrev(); return }
-    if (e.key === 'ArrowDown') { e.preventDefault(); props.onHistoryNext(); return }
+    // 先处理带修饰键的组合，普通键分支必须避让 —— 否则 Ctrl+Tab、Ctrl+↑
+    // 会被下面的 Tab / ArrowUp 分支截走。
+    const bare = !e.ctrlKey && !e.metaKey && !e.altKey
+
+    if (bare && e.key === 'Enter') { e.preventDefault(); onSubmit(value); return }
+    if (bare && e.key === 'Escape') { e.preventDefault(); props.onInterrupt(); return }
+    if (bare && e.key === 'Tab') { e.preventDefault(); props.onComplete(); return }
+    if (bare && e.key === 'ArrowUp') { e.preventDefault(); props.onHistoryPrev(); return }
+    if (bare && e.key === 'ArrowDown') { e.preventDefault(); props.onHistoryNext(); return }
 
     if (e.ctrlKey) {
       switch (e.key) {
@@ -6233,18 +6265,25 @@ export function Terminal() {
         prompt={search.active ? `(reverse-i-search)\`${search.query}': ` : term.prompt}
         value={search.active ? search.query : input}
         displayOverride={search.active ? search.match : undefined}
-        disabled={term.running}
+        // 光标落在匹配串里查询子串开始的位置，与 bash 一致
+        displayCaret={search.active ? Math.max(0, search.match.indexOf(search.query)) : undefined}
         onChange={v => {
           if (search.active) { search.type(v); return }
           setInput(v)
           setHint([])
         }}
         onSubmit={() => {
-          if (search.active) { const line = search.accept(); setInput(line); return }
+          if (search.active) {
+            // 无匹配时 accept() 返回空串 —— 不能拿它覆盖用户按 Ctrl+R 之前已经输入的内容
+            const line = search.accept()
+            if (line !== '') setInput(line)
+            history.reset()
+            return
+          }
           submit(input)
         }}
-        onHistoryPrev={() => setInput(history.prev(input))}
-        onHistoryNext={() => setInput(history.next())}
+        onHistoryPrev={() => { setHint([]); setInput(history.prev(input)) }}
+        onHistoryNext={() => { setHint([]); setInput(history.next()) }}
         onComplete={() => {
           if (search.active) return
           const r = runComplete(input)
@@ -6257,6 +6296,7 @@ export function Terminal() {
           term.interrupt()
           setInput('')
           setHint([])
+          history.reset()      // 与 bash 一致：Ctrl+C 之后 ↑ 从最新一条重新开始
         }}
         onClearScreen={term.clearScreen}
       />
