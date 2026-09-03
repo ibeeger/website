@@ -6,6 +6,7 @@ import { builtins } from '../commands'
 import { text } from '../core/process'
 import { createUiHost, type UiHooks } from './host'
 import { createBlockWriter } from './blockWriter'
+import { useTheme } from './useTheme'
 import type { Block } from './types'
 
 /** scrollback 上限，与真实终端一样丢弃最旧的输出。 */
@@ -18,6 +19,8 @@ export function useTerminal() {
   const idRef = useRef(0)
   const abortRef = useRef<AbortController | null>(null)
 
+  const { theme, setTheme, themes } = useTheme()
+
   // 用 useState 的惰性初始化，而不是 useRef(...).current：
   // react-hooks 的 refs 规则禁止在渲染期读 ref.current，而内核构造时就要拿到这个盒子。
   // 两种写法的初始值都在渲染期求值、行为相同，换写法纯粹是为了不触发该规则。
@@ -25,11 +28,25 @@ export function useTerminal() {
   const [hooksBox] = useState<{ current: UiHooks }>(() => ({
     current: {
       clear() { setBlocks([]) },
-      setTheme() { /* Task 19 接入 */ },
+      setTheme() { /* 下面每次渲染都会覆盖成最新实现 */ },
       listThemes() { return [] },
       currentTheme() { return '' },
     },
   }))
+
+  // 每次渲染都刷新，这正是 Task 16 那层间接存在的原因：命令可能在这次渲染的
+  // effect 冲刷之前就运行，box 必须已经持有本次渲染的最新回调。
+  // eslint-plugin-react-hooks@7 的 immutability 规则会把这行当成「直接改写
+  // useState 返回值」而报错——但 hooksBox 从来不是渲染输出的一部分，它是刻意
+  // 逃出 React 状态模型之外的一个稳定容器（见上面 Task 16 的注释），react-hooks
+  // 规则的静态分析无法区分这种情况。已向控制者报告，此处保留刻意豁免。
+  // eslint-disable-next-line react-hooks/immutability -- 见上：hooksBox 是 Task 16 设计的稳定可变容器，不是渲染输出
+  hooksBox.current = {
+    clear: () => setBlocks([]),
+    setTheme,
+    listThemes: () => themes,
+    currentTheme: () => theme,
+  }
 
   // 惰性初始化：内核只在首次渲染时构造一次。
   // 不要写成 `if (ref.current === null) { ...; setPrompt(...) }` —— 那是 render 阶段 setState。

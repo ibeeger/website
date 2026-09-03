@@ -24,11 +24,12 @@ import { exportCmd } from './sys/export'
 import { which } from './sys/which'
 import { history } from './sys/history'
 import { clear } from './sys/clear'
+import { theme } from './sys/theme'
 import type { Process } from '../core/process'
 
 export const builtins: Process[] = [
   ls, pwd, cd, cat, head, tail, wc,
   tree, find, touch, mkdir, rm,
   echo, grep, sort, uniq,
-  help, man, whoami, uname, date, env, exportCmd, which, history, clear,
+  help, man, whoami, uname, date, env, exportCmd, which, history, clear, theme,
 ]
