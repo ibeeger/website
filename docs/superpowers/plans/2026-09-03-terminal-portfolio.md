@@ -5280,7 +5280,7 @@ export type Block = {
 `src/ui/useTerminal.ts`：
 
 ```ts
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { text } from '../core/process'
 import { createKernel, type Kernel } from '../core/kernel'
 import { buildInitialVfs } from '../core/vfs/bootstrap'
@@ -6586,21 +6586,21 @@ export const theme: Process = {
 ```ts
   const { theme, setTheme, themes } = useTheme()
 
-  // 用无依赖数组的 effect，而不是在渲染期直接写这个 box。
-  // 渲染期写入会触发 eslint-plugin-react-hooks 的 immutability/refs 规则，
-  // 而本项目的命令全部由用户事件触发（回车、移动端快捷键条）—— 那总是发生在
-  // effect 冲刷之后，所以 effect 形式既合规又足够及时。
-  useEffect(() => {
-    hooksBox.current = {
-      clear: () => setBlocks([]),
-      setTheme,
-      listThemes: () => themes,
-      currentTheme: () => theme,
-    }
-  })
+  // eslint-plugin-react-hooks@7 的 immutability 规则会标记对 useState 派生值的
+  // 任何改动（不分渲染期还是 effect 内，时机不能豁免）；改用真正的 useRef 则会让
+  // createUiHost(hooksBox) 在惰性初始化里触发 refs 规则。三种 hook 写法都试过，
+  // 没有一种能同时满足两条规则 —— 这里是一条正确的模式与一条保守的静态规则冲突，
+  // 因此就地窄范围抑制，而不是改写成更差的结构或全局关掉规则。
+  // eslint-disable-next-line react-hooks/immutability
+  hooksBox.current = {
+    clear: () => setBlocks([]),
+    setTheme,
+    listThemes: () => themes,
+    currentTheme: () => theme,
+  }
 ```
 
-`hooksBox` 的初始值（Task 16 建立）已经包含可用的 `clear`，所以首次渲染到首个 effect 冲刷之间即使有人调用也不会炸。
+把这段放在 `kernelRef` 初始化**之前**，确保内核创建时 `hooksBox.current` 已就绪。
 
 同时把 `theme` 追加进 `src/commands/index.ts` 的 `builtins`，并删掉 `src/styles/global.css` 里 Task 16 留下的临时 `:root` 变量块 —— 现在由 `useTheme` 在运行时注入。为避免首帧无色，在 `index.html` 的 `<head>` 里保留一份内联的默认变量：
 
