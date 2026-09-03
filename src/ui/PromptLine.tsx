@@ -35,7 +35,10 @@ export function PromptLine(props: PromptLineProps) {
   }
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (composing) return          // 输入法候选期间一律放行
+    // 两道守卫都要：composing 是我们自己的 composition 事件状态，
+    // isComposing 是 KeyboardEvent 的标准属性。Chrome/Safari 会把「上屏用的那个回车」
+    // 也标成 isComposing=true，只看 React 状态在事件顺序不同的浏览器上会漏。
+    if (composing || e.nativeEvent.isComposing) return
 
     const pos = inputRef.current?.selectionStart ?? value.length
 

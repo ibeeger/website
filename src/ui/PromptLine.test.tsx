@@ -61,6 +61,16 @@ describe('PromptLine', () => {
     expect(onSubmit).toHaveBeenCalledWith('你好')
   })
 
+  it('原生事件 isComposing 为真时回车不提交（即便我们自己的 composing 状态还没跟上）', () => {
+    // 有些浏览器上，「用来上屏的那个回车」会在 compositionend 之前就派发一次
+    // keydown，且这次 keydown 的 isComposing 仍是 true —— 只看 React 自己的
+    // composing 状态（由 compositionstart/end 维护）会漏掉这种情况。这里不触发
+    // compositionStart，只在原生事件上标 isComposing:true，专门盯住这道守卫。
+    const { input, onSubmit } = setup({ value: '你好' })
+    fireEvent.keyDown(input, { key: 'Enter', isComposing: true })
+    expect(onSubmit).not.toHaveBeenCalled()
+  })
+
   it('组合期间 Tab 不触发补全', () => {
     const onComplete = vi.fn()
     const { input } = setup({ onComplete })
