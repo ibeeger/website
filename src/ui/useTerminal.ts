@@ -89,6 +89,9 @@ export function useTerminal() {
 
   return {
     blocks, running, prompt, submit, interrupt, complete,
+    // 这是同一个数组对象、内核原地 push（从不重新赋值），且 push 发生在 run()
+    // 的首个 await 之前：useHistory/useReverseSearch 靠这两点才能不经重渲染
+    // 就看见新提交的命令。换成 `session.history = [...]` 会悄悄破坏两者。
     history: kernel.ctx.history,
     clearScreen: useCallback(() => { setBlocks([]) }, []),
   }

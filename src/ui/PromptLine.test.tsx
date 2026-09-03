@@ -91,10 +91,16 @@ describe('PromptLine', () => {
     expect(container.querySelector('.cursor')).toBeTruthy()
   })
 
-  it('真 input 是透明但可聚焦的', () => {
+  it('真 input 可以获得焦点', () => {
+    // 不要断言 getComputedStyle 的 display/visibility：jsdom 从不加载项目样式表，
+    // 那两个值永远是 UA 默认值，无论组件写成什么样都会通过 —— 形同虚设。
     const { input } = setup()
-    const style = getComputedStyle(input)
-    expect(style.display).not.toBe('none')
-    expect(style.visibility).not.toBe('hidden')
+    input.focus()
+    expect(document.activeElement).toBe(input)
+  })
+
+  it('隐藏手法靠的是 class，而不是 display/visibility', () => {
+    const { input } = setup()
+    expect(input.className).toBe('promptline-input')
   })
 })

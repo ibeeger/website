@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import type { RefObject } from 'react'
 
 export type PromptLineProps = {
   prompt: string
@@ -11,20 +12,28 @@ export type PromptLineProps = {
   onInterrupt(): void
   onClearScreen(): void
   onReverseSearch(): void
-  /** 搜索态下用它替换自绘文本；真 input 的值仍是用户键入的查询串。Task 18 接上行为 */
+  /** 搜索态下用它替换自绘文本；真 input 的值仍是用户键入的查询串。 */
   displayOverride?: string
-  disabled?: boolean
+  /** 搜索态下自绘光标该停在 displayOverride 里的哪个位置，而不是真 input 的 selectionStart。 */
+  displayCaret?: number
+  /** 外部想拿到真 input 的引用时用（比如把整个终端容器都设为点击聚焦）。 */
+  inputRef?: RefObject<HTMLInputElement | null>
 }
 
 export function PromptLine(props: PromptLineProps) {
   const { prompt, value, onChange, onSubmit } = props
-  const inputRef = useRef<HTMLInputElement>(null)
+  // 用调用方传进来的 ref（比如 Terminal 想让整个容器点击都能聚焦），
+  // 没传就退回自己的：两种情况下都直接把这一个 RefObject 交给 React 的
+  // ref 属性去挂载，不手写回调去改 props 里的 .current —— 后者会被
+  // react-hooks/immutability 判成「渲染后修改 props」。
+  const localRef = useRef<HTMLInputElement>(null)
+  const inputRef = props.inputRef ?? localRef
   const [composing, setComposing] = useState(false)
   const [caret, setCaret] = useState(0)
 
   // 光标位置跟随真 input 的 selectionStart
   const syncCaret = () => setCaret(inputRef.current?.selectionStart ?? value.length)
-  useEffect(syncCaret, [value])
+  useEffect(syncCaret, [value, inputRef])
 
   const setAndFocus = (next: string, caretAt: number) => {
     onChange(next)
@@ -35,18 +44,26 @@ export function PromptLine(props: PromptLineProps) {
   }
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    // 两道守卫都要：composing 是我们自己的 composition 事件状态，
-    // isComposing 是 KeyboardEvent 的标准属性。Chrome/Safari 会把「上屏用的那个回车」
-    // 也标成 isComposing=true，只看 React 状态在事件顺序不同的浏览器上会漏。
-    if (composing || e.nativeEvent.isComposing) return
+    // 三道守卫都要：composing 是我们自己维护的 composition 状态；isComposing 是
+    // KeyboardEvent 的标准属性，覆盖「用来上屏的那个回车」在部分浏览器（Chrome/
+    // Safari）上先于 compositionend 派发、但 isComposing 仍为 true 的情况；
+    // keyCode 229 / key 'Process' 覆盖安卓输入法在拼音候选期间用它们代替真实
+    // 按键上报、而 isComposing 却为 false 的情况。
+    if (
+      composing || e.nativeEvent.isComposing ||
+      e.nativeEvent.keyCode === 229 || e.key === 'Process'
+    ) return
 
     const pos = inputRef.current?.selectionStart ?? value.length
+    // 只在没有修饰键时才把这些键当命令：否则 Ctrl+Tab / Ctrl+↑ 这类浏览器/
+    // 系统级组合键会被 Tab / ArrowUp 分支截胡。
+    const bare = !e.ctrlKey && !e.metaKey && !e.altKey
 
-    if (e.key === 'Enter') { e.preventDefault(); onSubmit(value); return }
-    if (e.key === 'Escape') { e.preventDefault(); props.onInterrupt(); return }
-    if (e.key === 'Tab') { e.preventDefault(); props.onComplete(); return }
-    if (e.key === 'ArrowUp') { e.preventDefault(); props.onHistoryPrev(); return }
-    if (e.key === 'ArrowDown') { e.preventDefault(); props.onHistoryNext(); return }
+    if (bare && e.key === 'Enter') { e.preventDefault(); onSubmit(value); return }
+    if (bare && e.key === 'Escape') { e.preventDefault(); props.onInterrupt(); return }
+    if (bare && e.key === 'Tab') { e.preventDefault(); props.onComplete(); return }
+    if (bare && e.key === 'ArrowUp') { e.preventDefault(); props.onHistoryPrev(); return }
+    if (bare && e.key === 'ArrowDown') { e.preventDefault(); props.onHistoryNext(); return }
 
     if (e.ctrlKey) {
       switch (e.key) {
@@ -72,40 +89,46 @@ export function PromptLine(props: PromptLineProps) {
   }
 
   const shown = props.displayOverride ?? value
-  const before = shown.slice(0, caret)
-  const at = shown.slice(caret, caret + 1) || ' '
-  const after = shown.slice(caret + 1)
+  const drawnCaret = props.displayCaret ?? caret
+  const before = shown.slice(0, drawnCaret)
+  const at = shown.slice(drawnCaret, drawnCaret + 1) || ' '
+  const after = shown.slice(drawnCaret + 1)
 
   return (
-    <div className="promptline" onClick={() => inputRef.current?.focus()}>
+    <div className="promptline">
       <span className="prompt">{prompt}</span>
       <span className="promptline-text">
         {before}
         <span className="cursor">{at}</span>
         {after}
+        {/*
+          真实 input：透明但可聚焦。承接键盘、剪贴板与输入法事件。
+          不能用 display:none / visibility:hidden —— 那样无法聚焦，移动端也不会弹键盘。
+          放在 .promptline-text 内部、以它为定位上下文，而不是整行：否则 input 的
+          文本原点会落在提示符下方（跟自绘文字错位），导致 IME 候选框在错误的位置
+          弹出、点击定位光标也会算错偏移。
+        */}
+        <input
+          ref={inputRef}
+          className="promptline-input"
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          onKeyDown={onKeyDown}
+          onKeyUp={syncCaret}
+          onSelect={syncCaret}
+          onCompositionStart={() => setComposing(true)}
+          onCompositionEnd={() => { setComposing(false); syncCaret() }}
+          // 组合被中途放弃时（比如移动端切到别的 app）不会触发 compositionend，
+          // composing 会永远卡在 true，之后每次按键（包括 Enter）都会被吞掉。
+          onBlur={() => setComposing(false)}
+          autoFocus
+          autoCapitalize="off"
+          autoCorrect="off"
+          autoComplete="off"
+          spellCheck={false}
+          aria-label="终端命令输入"
+        />
       </span>
-      {/*
-        真实 input：透明但可聚焦。承接键盘、剪贴板与输入法事件。
-        不能用 display:none / visibility:hidden —— 那样无法聚焦，移动端也不会弹键盘。
-      */}
-      <input
-        ref={inputRef}
-        className="promptline-input"
-        value={value}
-        disabled={props.disabled}
-        onChange={e => onChange(e.target.value)}
-        onKeyDown={onKeyDown}
-        onKeyUp={syncCaret}
-        onSelect={syncCaret}
-        onCompositionStart={() => setComposing(true)}
-        onCompositionEnd={() => { setComposing(false); syncCaret() }}
-        autoFocus
-        autoCapitalize="off"
-        autoCorrect="off"
-        autoComplete="off"
-        spellCheck={false}
-        aria-label="终端命令输入"
-      />
     </div>
   )
 }

@@ -29,8 +29,10 @@
 .t-magenta { color: var(--magenta); }
 .t-cyan { color: var(--cyan); }
 
-.promptline { position: relative; display: flex; white-space: pre-wrap; word-break: break-word; }
-.promptline-text { flex: 1; }
+.promptline { display: flex; white-space: pre-wrap; word-break: break-word; }
+/* 定位上下文放在文字区，不是整行：这样 input 的文本原点跟自绘文字对齐，
+   IME 候选框才会锚在光标块上而不是提示符下面，点击定位也不会算错偏移。 */
+.promptline-text { flex: 1; position: relative; }
 
 /* 透明覆盖层：接管所有键盘与 IME 事件，但视觉上不存在 */
 .promptline-input {
@@ -42,6 +44,9 @@
   outline: none;
   background: transparent;
   font: inherit;
+  /* iOS Safari 对 <16px 的 input 会在聚焦时自动放大页面且不会缩回去；
+     这个 input 本身不可见，字号大小不影响任何视觉效果。 */
+  font-size: 16px;
   color: inherit;
   caret-color: transparent;
 }
