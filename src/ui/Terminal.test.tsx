@@ -82,4 +82,31 @@ describe('Terminal', () => {
     expect(screen.queryByText(/reverse-i-search/)).toBeNull()
     expect(input.value).toBe('ec')
   })
+
+  it('反向搜索开启时，点按键条的符号键追加进查询串（命中项跟着更新），不碰隐藏的 input 草稿', () => {
+    const { container } = render(<Terminal />)
+    const input = screen.getByRole('textbox') as HTMLInputElement
+
+    // 造一条含 '/' 的历史，等下要靠它验证命中项确实跟着查询串更新
+    fireEvent.change(input, { target: { value: 'echo test/path' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    // 正常态打出草稿；草稿在整个搜索过程中应该保持不动
+    fireEvent.change(input, { target: { value: 'zz' } })
+
+    fireEvent.keyDown(input, { key: 'r', ctrlKey: true })
+    expect(screen.queryByText(/reverse-i-search/)).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: '/' }))
+
+    // 符号进了查询串（真实 DOM input 的 value 就是 search.query）
+    expect(input.value).toBe('/')
+    // 命中项跟着查询串更新：自绘文字区域此刻应该正好显示匹配到的历史整行
+    expect(container.querySelector('.promptline-text')?.textContent).toBe('echo test/path')
+
+    // 退出搜索后草稿原封不动——符号进了查询串，没有污染 input
+    fireEvent.keyDown(input, { key: 'Escape' })
+    expect(screen.queryByText(/reverse-i-search/)).toBeNull()
+    expect(input.value).toBe('zz')
+  })
 })
