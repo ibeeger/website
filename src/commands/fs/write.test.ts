@@ -133,4 +133,14 @@ describe('rm', () => {
     expect(r.out).toContain('nice try')
     expect(ctx.vfs.isDir('/home/guest')).toBe(true)
   })
+
+  // 彩蛋检查之前是在循环内部逐个操作数判断的：rm -rf foo / 会先把 foo
+  // 真删掉，处理到 '/' 时才触发彩蛋并直接 return——foo 已经没了。
+  // 检查必须提到循环之前，保证只要目标里出现 /，一个操作数都不会被处理。
+  it('rm -rf apple.md / 触发彩蛋时，apple.md 也不会被真的删掉', async () => {
+    const r = await runCmd(rm, ['rm', '-rf', 'apple.md', '/'], ctx)
+    expect(r.code).toBe(1)
+    expect(r.out).toContain('nice try')
+    expect(ctx.vfs.stat('/home/guest/apple.md')).not.toBeNull()
+  })
 })

@@ -21,18 +21,21 @@ export const rm: Process = {
       return 2
     }
 
+    // 彩蛋：rm -rf / 不真的删，也不冷冰冰地报 EPERM。检查必须放在循环之前、
+    // 扫描全部操作数——之前是在循环内部逐个判断的，`rm -rf foo /` 会先把
+    // foo 真删掉，处理到 '/' 时才踩到彩蛋、直接 return，foo 已经没了。
+    // 只要操作数里出现 /，就必须一个操作数都不处理。
+    if (flags.has('r') && flags.has('f') && operands.some(t => ctx.vfs.resolve(ctx.cwd, t) === '/')) {
+      io.stdout.writeLine('rm: 正在删除 / ...')
+      io.stdout.writeLine('rm: 正在删除 /home ...')
+      io.stdout.writeLine('rm: 正在删除 /etc ...')
+      io.stdout.writeLine('')
+      io.stdout.writeLine('...开个玩笑。nice try —— 这里的文件系统只活在内存里。')
+      return 1
+    }
+
     let code = 0
     for (const t of operands) {
-      // 彩蛋：rm -rf / 不真的删，也不冷冰冰地报 EPERM
-      if (ctx.vfs.resolve(ctx.cwd, t) === '/' && flags.has('r') && flags.has('f')) {
-        io.stdout.writeLine('rm: 正在删除 / ...')
-        io.stdout.writeLine('rm: 正在删除 /home ...')
-        io.stdout.writeLine('rm: 正在删除 /etc ...')
-        io.stdout.writeLine('')
-        io.stdout.writeLine('...开个玩笑。nice try —— 这里的文件系统只活在内存里。')
-        return 1
-      }
-
       const abs = ctx.vfs.resolve(ctx.cwd, t)
       const st = ctx.vfs.stat(abs)
 

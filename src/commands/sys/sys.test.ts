@@ -107,6 +107,22 @@ describe('env / export', () => {
   it('export 参数缺少等号时返回 2', async () => {
     expect((await runCmd(exportCmd, ['export', 'FOO'], ctx)).code).toBe(2)
   })
+
+  // 之前只读 argv[1]：export A=1 B=2 会悄悄只设置 A、丢掉 B，还返回 0——
+  // 静默的部分成功是最差的失败模式。
+  it('export A=1 B=2 两个变量都要设置，不能丢掉后面的操作数', async () => {
+    const r = await runCmd(exportCmd, ['export', 'A=1', 'B=2'], ctx)
+    expect(r.code).toBe(0)
+    expect(ctx.env.get('A')).toBe('1')
+    expect(ctx.env.get('B')).toBe('2')
+  })
+
+  it('多个操作数里有一个缺等号：合法的仍然生效，同时返回 2 而不是悄悄吞掉', async () => {
+    const r = await runCmd(exportCmd, ['export', 'A=1', 'BAD', 'C=3'], ctx)
+    expect(r.code).toBe(2)
+    expect(ctx.env.get('A')).toBe('1')
+    expect(ctx.env.get('C')).toBe('3')
+  })
 })
 
 describe('which / history / clear', () => {

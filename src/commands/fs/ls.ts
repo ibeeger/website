@@ -39,6 +39,11 @@ export const ls: Process = {
       const abs = ctx.vfs.resolve(ctx.cwd, t)
       const st = ctx.vfs.stat(abs)
       if (!st) {
+        // 退出码约定里「2 = 用法/参数错误」的唯一例外文档上写的是 grep，
+        // 但这里的 2 是刻意的第二个例外，不是疏漏：真实 GNU ls 对不存在的
+        // 路径就是返回 2（1 留给「列出时部分失败」这类更轻的问题）。
+        // 跟着 GNU 的行为走是有意选择，记在这里免得下一个读者当成是
+        // 该改成 1 的不一致。
         io.stderr.writeLine(`ls: cannot access '${t}': No such file or directory`)
         code = 2
         continue
