@@ -5,7 +5,7 @@ import { staticResumePlugin } from './src/seo/vite-plugin-static-resume.ts'
 export default defineConfig({
   plugins: [
     react(),
-    staticResumePlugin({ name: 'cuixiaohan', url: 'https://github.com/cuixiaohan' }),
+    staticResumePlugin({ name: 'cuixiaohan', url: 'https://i.xiaohan.dev' }),
   ],
   base: process.env.VITE_BASE ?? '/',
 })
