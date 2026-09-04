@@ -39,7 +39,7 @@ export function Terminal() {
     [motd],
   )
 
-  useEffect(() => { bottomRef.current?.scrollIntoView({ block: 'end' }) }, [term.blocks, hint])
+  useEffect(() => { bottomRef.current?.scrollIntoView({ block: 'end' }) }, [term.blocks, hint, bottomInset])
 
   const submit = (line: string) => {
     term.submit(line)
@@ -66,8 +66,20 @@ export function Terminal() {
     history.reset()
   }
 
-  const doHistoryPrev = () => { setHint([]); setInput(history.prev(input)) }
-  const doHistoryNext = () => { setHint([]); setInput(history.next()) }
+  // 真实 bash 里 Ctrl+R 之后按 ↑/↓ 会先退出搜索、再照常做历史导航——不是原地
+  // 挡住。这里选的就是这个语义：先关掉搜索框（search.cancel 不影响 input 里
+  // 那份没被搜索碰过的草稿），再对 input 做正常的 prev/next。不这样做的话，
+  // ↑/↓ 会在搜索态下悄悄改写藏在覆盖层背后的 input 值，用户在搜索框里却看不到。
+  const doHistoryPrev = () => {
+    if (search.active) search.cancel()
+    setHint([])
+    setInput(history.prev(input))
+  }
+  const doHistoryNext = () => {
+    if (search.active) search.cancel()
+    setHint([])
+    setInput(history.next())
+  }
 
   const handleMobileKey = (k: MobileKey) => {
     switch (k) {
@@ -102,7 +114,14 @@ export function Terminal() {
       style={{ paddingBottom: bottomInset }}
       // 点击终端里任意位置都聚焦输入框：这是唯一的焦点恢复手段（尤其是移动端，
       // 一行高的 .promptline 几乎点不中），所以覆盖面要大于那一行。
-      onClick={() => inputRef.current?.focus()}
+      // 但一次拖拽选中输出文字，鼠标松开时同样会在这个公共祖先上派发 click——
+      // 如果无条件聚焦，刚选好的文字会被 focus 顺带清掉的 document selection
+      // 吞掉，用户永远复制不出这页唯一的内容（比如 contact 打印的邮箱）。
+      // 所以先看当前有没有非折叠的选区，有就让它，不抢焦点。
+      onClick={() => {
+        if (!window.getSelection()?.isCollapsed) return
+        inputRef.current?.focus()
+      }}
     >
       {!booted && <BootSequence lines={bootLines} onDone={() => setBooted(true)} />}
       <div aria-live="polite" aria-atomic="false">

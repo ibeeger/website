@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { Terminal } from './Terminal'
 import { BOOT_STORAGE_KEY } from './BootSequence'
@@ -108,5 +108,68 @@ describe('Terminal', () => {
     fireEvent.keyDown(input, { key: 'Escape' })
     expect(screen.queryByText(/reverse-i-search/)).toBeNull()
     expect(input.value).toBe('zz')
+  })
+
+  it('点击容器时，若有非折叠的文字选区，不抢焦点（否则拖拽选中的输出文字会被清掉，页面上任何文字都复制不出来）', async () => {
+    // 断言方式：spy 住 input.focus，而不是「点击后检查选区是否还在」——
+    // jsdom 里 focus() 本身会把无关的 selection 折叠掉（这跟真实浏览器一致，
+    // 也正是这条 finding 描述的机制），所以「点击后选区是否还在」测的其实是
+    // 「focus 有没有被调用」的间接效果。既然事件处理器的分支就是
+    // 「选区非折叠 -> 不调用 focus()」，直接 spy focus 更准确，也不需要
+    // 先把 input blur 掉——jsdom 的 blur() 会无条件折叠全局 selection
+    // （跟真实浏览器里「blur 一个 <input> 不影响页面上不相关的文字选区」
+    // 不一致，是 jsdom 未忠实实现的一角），依赖它会测出假象。
+    const { container } = render(<Terminal />)
+    const input = screen.getByRole('textbox') as HTMLInputElement
+
+    fireEvent.change(input, { target: { value: 'echo hi' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() => expect(screen.getByText('hi')).toBeTruthy())
+
+    // 模拟「用户刚拖拽选中了一段输出文字」：在真实输出节点上建一个非折叠的
+    // document selection——click 事件的公共祖先是整个 .terminal 容器，
+    // 选区可以落在输出区的任何文本节点上。
+    const output = screen.getByText('hi')
+    const range = document.createRange()
+    range.selectNodeContents(output)
+    const sel = window.getSelection()!
+    sel.removeAllRanges()
+    sel.addRange(range)
+    expect(sel.isCollapsed).toBe(false)
+
+    const focusSpy = vi.spyOn(input, 'focus')
+    fireEvent.click(container.querySelector('.terminal')!)
+
+    expect(focusSpy).not.toHaveBeenCalled()
+  })
+
+  it('点击容器时，没有选区（折叠态）就正常聚焦输入框', () => {
+    const { container } = render(<Terminal />)
+    const input = screen.getByRole('textbox') as HTMLInputElement
+
+    window.getSelection()?.removeAllRanges()
+    expect(window.getSelection()?.isCollapsed).toBe(true)
+
+    const focusSpy = vi.spyOn(input, 'focus')
+    fireEvent.click(container.querySelector('.terminal')!)
+
+    expect(focusSpy).toHaveBeenCalled()
+  })
+
+  it('反向搜索开启时按 ↑ 会退出搜索并照常导航历史（跟 bash 一致），而不是原地悄悄改写隐藏的草稿', async () => {
+    render(<Terminal />)
+    const input = screen.getByRole('textbox') as HTMLInputElement
+
+    fireEvent.change(input, { target: { value: 'echo one' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() => expect(screen.getByText('one')).toBeTruthy())
+
+    fireEvent.keyDown(input, { key: 'r', ctrlKey: true })
+    expect(screen.queryByText(/reverse-i-search/)).toBeTruthy()
+
+    fireEvent.keyDown(input, { key: 'ArrowUp' })
+
+    expect(screen.queryByText(/reverse-i-search/)).toBeNull()
+    expect(input.value).toBe('echo one')
   })
 })
