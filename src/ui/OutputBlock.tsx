@@ -1,5 +1,6 @@
 import { ChunkView } from './ChunkView'
 import { ErrorBoundary } from './ErrorBoundary'
+import { Thinking } from './chat/Thinking'
 import { chunkToText } from '../core/process'
 import type { Block } from './types'
 
@@ -11,8 +12,9 @@ function chunkFallback(c: Parameters<typeof chunkToText>[0]) {
 }
 
 export function OutputBlock({ block }: { block: Block }) {
+  const isChat = block.kind === 'chat'
   return (
-    <div className="block">
+    <div className={isChat ? 'block block-chat' : 'block'}>
       <div className="block-input">
         <span className="prompt">{block.prompt}</span>
         <span>{block.input}</span>
@@ -26,6 +28,9 @@ export function OutputBlock({ block }: { block: Block }) {
           ))}
         </div>
       )}
+      {isChat && block.phase === 'thinking' && <Thinking />}
+      {isChat && block.interrupted === true && <div className="t-dim">^C 已中断</div>}
+      {isChat && block.error !== undefined && <div className="t-red">ask: {block.error}</div>}
     </div>
   )
 }

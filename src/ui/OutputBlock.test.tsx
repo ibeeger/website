@@ -31,4 +31,50 @@ describe('OutputBlock', () => {
     expect(screen.getByText('plain fallback text')).toBeTruthy()
     spy.mockRestore()
   })
+
+  it('chat block 在 thinking 阶段渲染思考指示器', () => {
+    const block: Block = {
+      id: 'b1', prompt: 'ask> ', input: '你好', chunks: [],
+      exitCode: null, kind: 'chat', phase: 'thinking',
+    }
+    const { container } = render(<OutputBlock block={block} />)
+    expect(container.querySelector('[aria-busy="true"]')).toBeTruthy()
+  })
+
+  it('chat block 进入 streaming 后不再渲染思考指示器', () => {
+    const block: Block = {
+      id: 'b1', prompt: 'ask> ', input: '你好', chunks: [text('回答')],
+      exitCode: null, kind: 'chat', phase: 'streaming',
+    }
+    const { container } = render(<OutputBlock block={block} />)
+    expect(container.querySelector('[aria-busy="true"]')).toBeNull()
+  })
+
+  it('中断的 chat block 显示已中断，且保留已生成的内容', () => {
+    const block: Block = {
+      id: 'b1', prompt: 'ask> ', input: '你好', chunks: [text('半句')],
+      exitCode: null, kind: 'chat', phase: 'idle', interrupted: true,
+    }
+    render(<OutputBlock block={block} />)
+    expect(screen.getByText(/已中断/)).toBeTruthy()
+    expect(screen.getByText(/半句/)).toBeTruthy()
+  })
+
+  it('出错的 chat block 标红显示错误', () => {
+    const block: Block = {
+      id: 'b1', prompt: 'ask> ', input: '你好', chunks: [],
+      exitCode: null, kind: 'chat', phase: 'idle', error: '模型炸了',
+    }
+    const { container } = render(<OutputBlock block={block} />)
+    expect(container.querySelector('.t-red')?.textContent).toContain('模型炸了')
+  })
+
+  it('普通 block 不受影响 —— 没有 kind 时行为与从前一致', () => {
+    const block: Block = {
+      id: 'b1', prompt: '$ ', input: 'ls', chunks: [text('a.md')], exitCode: 0,
+    }
+    const { container } = render(<OutputBlock block={block} />)
+    expect(container.querySelector('[aria-busy="true"]')).toBeNull()
+    expect(container.querySelector('.block-chat')).toBeNull()
+  })
 })

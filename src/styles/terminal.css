@@ -126,3 +126,20 @@
 .skill-row { display: flex; gap: 2ch; }
 .skill-bar { color: var(--green); letter-spacing: 1px; }
 .skill-bar-empty { opacity: 0.3; }
+
+/* 左侧色条把对话 block 与普通命令输出区分开 */
+.block-chat {
+  border-left: 2px solid var(--magenta);
+  padding-left: 0.75rem;
+}
+.chat-thinking {
+  color: var(--yellow);
+  display: flex;
+  gap: 0.5rem;
+}
+.chat-spinner { display: inline-block; width: 1ch; }
+
+/* 尊重系统的减少动效设置：转圈对前庭敏感的用户是负担 */
+@media (prefers-reduced-motion: reduce) {
+  .chat-spinner { visibility: hidden; }
+}
