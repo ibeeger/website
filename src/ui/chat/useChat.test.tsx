@@ -99,4 +99,26 @@ describe('useChat', () => {
 
     expect(result.current.turns).toHaveLength(1)
   })
+
+  it('leave() 在 session 还没 resolve 时也能释放 —— 走 promise.then 降级路径', async () => {
+    const ai = fakeAi({ kind: 'ready' }, ['答'])
+    const { result } = renderHook(() => useChat(ai))
+    // 中间不 await：leave() 落在 createSession() 的 promise 还没 resolve 的窗口内，
+    // 逼出 disposeSession() 里 resolved 分支为空、退化到 pending.then(destroy) 的那条路径。
+    act(() => { result.current.enter({ systemPrompt: 's' }) })
+    act(() => { result.current.leave() })
+
+    await waitFor(() => expect(ai.destroyed).toBe(1))
+  })
+
+  it('组件卸载时释放 session —— 不依赖调用方记得 leave()', async () => {
+    const ai = fakeAi({ kind: 'ready' }, ['答'])
+    const { result, unmount } = renderHook(() => useChat(ai))
+    act(() => { result.current.enter({ systemPrompt: 's' }) })
+    await waitFor(() => expect(ai.created).toBe(1))
+
+    unmount()
+
+    await waitFor(() => expect(ai.destroyed).toBe(1))
+  })
 })
