@@ -1,8 +1,8 @@
 {
   "name": "xiaohandev",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "终端风格的个人主页：输入 Linux 命令浏览简历、项目与联系方式的纯静态站点。",
+  "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -13,8 +13,8 @@
     "lint": "eslint ."
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "author": "cuixiaohan <mr.web0310@gmail.com>",
+  "license": "UNLICENSED",
   "packageManager": "pnpm@10.13.1",
   "dependencies": {
     "react": "^19.2.8",
