@@ -12,8 +12,10 @@ export default tseslint.config(
     rules: reactHooks.configs.recommended.rules,
   },
   {
-    // 架构边界的机械强制：core 与 commands 不得运行时依赖 React
-    files: ['src/core/**/*.ts', 'src/commands/**/*.ts'],
+    // 架构边界的机械强制：core 与 commands 不得运行时依赖 React。
+    // glob 必须覆盖 .tsx——React 只能通过 .tsx 文件混进这两棵树，纯 .ts
+    // 文件里写不出 JSX，光挡 .ts 等于只守住了不可能发生的那一半。
+    files: ['src/core/**/*.{ts,tsx}', 'src/commands/**/*.{ts,tsx}'],
     rules: {
       '@typescript-eslint/no-restricted-imports': ['error', {
         paths: [
