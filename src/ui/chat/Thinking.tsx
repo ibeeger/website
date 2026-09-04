@@ -19,9 +19,14 @@ export function Thinking() {
   }, [])
 
   return (
-    <div className="chat-thinking" aria-busy="true" aria-live="polite">
+    // aria-live 特意不放在这里：Terminal.tsx 已经用一个 aria-live="polite"
+    // 包住了所有 block，这里再加一层会让同一次更新被读屏播报两遍；
+    // 每秒变化的秒数则整段塞进 aria-hidden，让外层 live region 捕捉到的
+    // 可访问文本永远是「思考中」，只播报一次——秒数只服务视觉用户。
+    <div className="chat-thinking" aria-busy="true">
       <span className="chat-spinner" aria-hidden="true">{DOTS[frame % DOTS.length]}</span>
-      <span>思考中{elapsed > 0 ? ` ${elapsed}s` : ''}</span>
+      <span>思考中</span>
+      {elapsed > 0 && <span aria-hidden="true"> {elapsed}s</span>}
     </div>
   )
 }

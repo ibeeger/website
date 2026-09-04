@@ -23,4 +23,12 @@ describe('Thinking', () => {
     act(() => { vi.advanceTimersByTime(3000) })
     expect(screen.getByText(/3s/)).toBeTruthy()
   })
+
+  it('秒数不进入无障碍树 —— 外层已有 aria-live，秒数每秒变一次会让读屏重复播报', () => {
+    vi.useFakeTimers()
+    render(<Thinking />)
+    act(() => { vi.advanceTimersByTime(3000) })
+    const secondsNode = screen.getByText(/3s/)
+    expect(secondsNode.getAttribute('aria-hidden')).toBe('true')
+  })
 })
