@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Plugin } from 'vite'
 import { renderStaticResume } from './renderStaticResume.ts'
+import type { SkillGroup } from '../ui/rich/skillsText.ts'
 
 const CONTENT_DIR = 'src/content'
 
@@ -16,6 +17,14 @@ function collect(): Record<string, string> {
   }
   walk(CONTENT_DIR, '')
   return files
+}
+
+/** 直接读 skills.json，不走 src/content/index.ts——那份用了 import.meta.glob，
+ * 是 Vite 构建期的宏，只在真正的应用模块图里生效，这个插件文件是 vite.config
+ * 自身的加载阶段，走不通那条路。跟 collect() 读 Markdown 是同一个理由。 */
+function collectSkills(): SkillGroup[] {
+  const raw = readFileSync(join(process.cwd(), CONTENT_DIR, 'skills.json'), 'utf8')
+  return (JSON.parse(raw) as { groups: SkillGroup[] }).groups
 }
 
 /**
@@ -49,7 +58,7 @@ export function staticResumePlugin(opts: { name: string; url?: string }): Plugin
     transformIndexHtml: {
       order: 'pre',
       handler(html) {
-        const resume = renderStaticResume(collect(), opts)
+        const resume = renderStaticResume(collect(), collectSkills(), opts)
         return html
           .replace('<!--STATIC_RESUME-->', resume)
           .replace('<!--NOSCRIPT_RESUME-->', NOSCRIPT_REVEAL)

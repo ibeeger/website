@@ -1,22 +1,10 @@
-export type SkillGroup = { name: string; items: { name: string; level: number }[] }
-
-const MAX_LEVEL = 5
-
-/**
- * skills.json 是站点作者手改的内容文件，"level": 6 这样的笔误完全可预见。
- * node chunk 在 React 渲染阶段才求值，proc.run 的 try/catch 早已返回，内核的
- * 执行器兜不住这里的异常——一次越界的 level 就是白屏，而不是一条错误提示。
- * 所以两处消费 level 的地方都必须先夹到 [0, MAX_LEVEL]。
- */
-export function clampLevel(level: number): number {
-  return Math.max(0, Math.min(MAX_LEVEL, level))
-}
-
-export function skillsToText(groups: SkillGroup[]): string {
-  return groups
-    .map(g => `${g.name}\n` + g.items.map(i => `  ${i.name}  ${clampLevel(i.level)}/${MAX_LEVEL}`).join('\n'))
-    .join('\n') + '\n'
-}
+// clampLevel / skillsToText / MAX_LEVEL 挪去了 skillsText.ts（纯 TS，零 React
+// 依赖），好让构建时在 Node 里跑的 renderStaticResume 也能用同一份数据、
+// 同一套夹紧规则，而不必把 React 拖进它的依赖图。这里原样重新导出，
+// 不改动任何既有导入路径（resume.tsx / skills.tsx / SkillBars.test.tsx
+// 都还从 './SkillBars' 导入）。
+import { clampLevel, MAX_LEVEL, type SkillGroup } from './skillsText'
+export { clampLevel, skillsToText, MAX_LEVEL, type SkillGroup } from './skillsText'
 
 export function SkillBars({ groups }: { groups: SkillGroup[] }) {
   const width = Math.max(...groups.flatMap(g => g.items.map(i => i.name.length)), 0)

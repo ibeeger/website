@@ -1,3 +1,5 @@
+import { clampLevel, MAX_LEVEL, type SkillGroup } from '../ui/rich/skillsText.ts'
+
 const ESCAPES: Record<string, string> = {
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
 }
@@ -49,6 +51,7 @@ function mdToHtml(source: string): string {
  */
 export function renderStaticResume(
   files: Record<string, string>,
+  skills: SkillGroup[],
   opts: { name: string; url?: string },
 ): string {
   // 整份文档只有一个 h1——姓名。内容文件自己的标题在 mdToHtml 里已经降了一级，
@@ -56,6 +59,22 @@ export function renderStaticResume(
   const sections: string[] = [`<h1>${escapeHtml(opts.name)}</h1>`]
 
   if (files['about.md']) sections.push(mdToHtml(files['about.md']))
+
+  // 爬虫与关闭 JS 的用户拿到的是这份静态简历，而不是 in-terminal 的 resume
+  // 命令——两者必须包含同一批小节。之前这里漏了技能，静态版本反而比
+  // 终端里能打出来的版本更「瘦」，跟「让作者更容易被搜到」的目标正相反。
+  // 用跟 skillsToText 相同的数据源与夹紧规则（clampLevel），保证口径一致。
+  if (skills.length > 0) {
+    sections.push('<h2>技能</h2>')
+    for (const g of skills) {
+      sections.push(`<h3>${escapeHtml(g.name)}</h3>`)
+      sections.push('<ul>')
+      for (const item of g.items) {
+        sections.push(`<li>${escapeHtml(item.name)}  ${clampLevel(item.level)}/${MAX_LEVEL}</li>`)
+      }
+      sections.push('</ul>')
+    }
+  }
 
   const projectKeys = Object.keys(files)
     .filter(k => k.startsWith('projects/') && k.endsWith('.md'))
