@@ -4,11 +4,18 @@ import { join } from 'node:path'
 import type { IndexHtmlTransformContext } from 'vite'
 import { staticResumePlugin, NOSCRIPT_REVEAL } from './vite-plugin-static-resume'
 
-/** 从 global.css 里摘出 #static-resume 规则声明的每一个属性名。 */
+/**
+ * 从 index.html 的内联 <style> 里摘出 #static-resume 规则声明的每一个属性名。
+ *
+ * 为什么读 index.html 而不是 global.css：该规则必须内联在 index.html，
+ * 因为它管辖的标记由构建期插件直接注入那个文件、必须在首帧就生效。
+ * 规则搬家时这个测试会红，那是它该有的反应 —— 请跟着规则走，
+ * 不要为了让它变绿而把规则搬回外部样式表。
+ */
 function staticResumeHidingProps(): string[] {
-  const css = readFileSync(join(process.cwd(), 'src/styles/global.css'), 'utf8')
+  const css = readFileSync(join(process.cwd(), 'index.html'), 'utf8')
   const rule = css.match(/#static-resume\s*\{([^}]*)\}/)
-  if (!rule) throw new Error('global.css 里找不到 #static-resume 规则，测试基准丢失')
+  if (!rule) throw new Error('index.html 的内联 style 里找不到 #static-resume 规则，测试基准丢失')
   const body = rule[1]
   if (body === undefined) throw new Error('#static-resume 规则解析失败')
   return Array.from(body.matchAll(/([a-z-]+)\s*:/g)).map(m => m[1]!)
