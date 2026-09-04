@@ -22,8 +22,18 @@
       "name": "工程",
       "items": [
         { "name": "Node.js", "level": 4 },
+        { "name": "Vitest", "level": 4 },
+        { "name": "ESLint", "level": 4 },
         { "name": "Git", "level": 4 },
-        { "name": "CI/CD", "level": 3 }
+        { "name": "CI/CD", "level": 3 },
+        { "name": "GitHub Actions", "level": 3 }
+      ]
+    },
+    {
+      "name": "其他",
+      "items": [
+        { "name": "无障碍 (a11y)", "level": 3 },
+        { "name": "SEO", "level": 3 }
       ]
     }
   ]

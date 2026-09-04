@@ -1,10 +1,21 @@
 # terminal-site
 
-你正在使用的这个网站。
+你正在使用的这个网站。一个纯静态的终端模拟器，没有用任何现成的终端库，
+整条命令链路从零实现。
 
-一个纯静态的终端模拟器：虚拟文件系统、管道、重定向、Tab 补全全部在浏览器里实现，
-内核是零框架依赖的纯 TypeScript，React 只负责渲染。
+- **shell 前端**：词法分析 → 语法解析 → 变量展开 → glob 匹配 → 执行器。
+  支持管道 `|`、重定向 `>` `>>`、环境变量 `$VAR`、退出码 `$?`、Tab 补全、历史记录。
+- **虚拟文件系统**：内存中的树结构，路径解析、目录遍历、
+  以及和真实系统一致的错误码（ENOENT / EISDIR / EPERM）。
+- **进程契约**：每个命令实现同一个 `Process` 接口，通过流式 `IO` 收发数据。
+  因此任何命令天然可以进管道——包括以后新加的。
+- **零框架内核**：`src/core/` 不允许出现 React import，由 ESLint 强制。
+  内核可以脱离浏览器在 Node 里单测，也为将来挂载 WASM 命令模块留好了接口。
 
-- 技术栈：TypeScript, React, Vite
-- 源码：https://github.com/cuixiaohan/terminal-site
+SEO 上有个专门处理：爬虫不执行 JavaScript，所以构建期有一个 Vite 插件把
+Markdown 内容渲染成语义化 HTML 注入 `index.html`——对视觉用户 clip 隐藏、
+对爬虫和读屏软件完整可见，禁用 JS 时自动还原为正常排版。
+
+- 技术栈：TypeScript, React, Vite, Vitest
+- 规模：约 3500 行实现，41 个测试文件 / 425 个用例
 - 状态：持续维护

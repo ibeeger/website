@@ -23,7 +23,7 @@
 
 - `about.md` —— `about` 命令与静态简历的正文
 - `contact.md` —— 联系方式
-- `projects/*.md` —— 一个文件一个项目，新增文件即新增项目
+- `projects/*.md` —— 一个文件一个项目，新增文件即新增项目（复制一份现有的改内容即可）
 - `skills.json` —— 技能分组，`level` 取值 1–5
 
 改完直接 `pnpm build`，静态简历与虚拟文件系统都会自动同步。
@@ -31,6 +31,7 @@
 ## 架构
 
     src/core/       shell 内核。纯 TypeScript，零 React 依赖，可在 Node 中单测
+    src/core/ai/    Chrome 内置模型适配层，唯一接触 globalThis.LanguageModel 的地方
     src/commands/   内置命令，纯 TypeScript
     src/ui/         React 渲染层
     src/ui/commands/  需要富输出（可点击卡片、图表）的命令
@@ -71,7 +72,12 @@ export const hello: Process = {
 
 ## 部署
 
-推送到 `main` 分支后由 GitHub Actions 自动部署到 GitHub Pages。
-部署到子路径时用 `VITE_BASE` 指定，例如：
+推送到 `main` 分支后由 GitHub Actions 自动部署到 GitHub Pages，
+自定义域名 `i.xiaohan.dev` 由 `public/CNAME` 指定，站点服务于根路径。
+
+改域名要同时改四处：`public/CNAME`、仓库根目录的 `CNAME`（GitHub 自动生成）、
+`index.html` 的 `og:url`、`vite.config.ts` 传给静态简历插件的 `url`。
+
+若改回 `user.github.io/<repo>/` 形式的子路径部署，构建时指定 base：
 
     VITE_BASE=/terminal-site/ pnpm build
