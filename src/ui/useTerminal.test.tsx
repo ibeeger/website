@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import './test-setup' // 注册 afterEach(cleanup)，见 test-setup.ts 顶部注释
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { renderHook, act, waitFor } from '@testing-library/react'
 import { useTerminal } from './useTerminal'
 import { chunkToText, type Process } from '../core/process'
@@ -53,11 +53,28 @@ vi.mock('../core/kernel', async (importOriginal) => {
 // createBrowserAi() 永远返回 unsupported，ask 会走诊断分支、根本进不了模式。
 // 换掉的是浏览器而不是被测代码。刻意返回同一个实例：useTerminal 把它同时交给
 // kernel（命令查可用性）和 useChat（模式里真正提问），两边必须是同一个 provider。
+// 默认返回同一个就绪的实例；两个开关分别用来制造「模型提问就炸」和「第二次
+// 取 provider 会拿到另一个（不可用的）实例」这两种场景，用完在 afterEach 复位。
+const aiCtl = vi.hoisted(() => ({ throwOnPrompt: false, onlyFirstReady: false, calls: 0 }))
+
 vi.mock('../core/ai/languageModel', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../core/ai/languageModel')>()
   const { fakeAi } = await import('../commands/testkit')
-  const shared = fakeAi({ kind: 'ready' }, ['答', '案'])
-  return { ...actual, createBrowserAi: () => shared }
+  const ready = fakeAi({ kind: 'ready' }, ['答', '案'])
+  const failing = fakeAi({ kind: 'ready' }, [], { throwOnPrompt: true })
+  return {
+    ...actual,
+    createBrowserAi: () => {
+      if (aiCtl.onlyFirstReady && ++aiCtl.calls > 1) return fakeAi({ kind: 'unsupported' })
+      return aiCtl.throwOnPrompt ? failing : ready
+    },
+  }
+})
+
+afterEach(() => {
+  aiCtl.throwOnPrompt = false
+  aiCtl.onlyFirstReady = false
+  aiCtl.calls = 0
 })
 
 describe('useTerminal', () => {
@@ -241,6 +258,8 @@ describe('useTerminal 对话模式', () => {
     act(() => { result.current.submit('你好') })
     const pendingBlock = result.current.blocks[result.current.blocks.length - 1]!
     expect(pendingBlock.phase).toBe('thinking')
+    // 还没有文本就不该有 chunk —— 空 chunk 会让 OutputBlock 多渲染一个空输出区。
+    expect(pendingBlock.chunks).toEqual([])
     // 生成中直接 exit：turns 被清空，那一轮的收尾 patch 再也到不了这个 block。
     act(() => { result.current.submit('exit') })
     await waitFor(() => expect(result.current.chatActive).toBe(false))
@@ -256,5 +275,99 @@ describe('useTerminal 对话模式', () => {
     await waitFor(() => expect(result.current.chatActive).toBe(false))
     act(() => { result.current.submit('echo recovered') })
     await waitFor(() => expect(outputOf(result.current.blocks)).toContain('recovered\n'))
+  })
+  it('模型报错时错误落在那一轮的 block 上', async () => {
+    aiCtl.throwOnPrompt = true
+    const { result } = renderHook(() => useTerminal())
+    await enterChat(result)
+    act(() => { result.current.submit('你好') })
+    await waitFor(() => {
+      const last = result.current.blocks[result.current.blocks.length - 1]!
+      expect(last.error).toBe('模型炸了')
+    })
+    // 报错不该把人踢出模式：换个问法还能接着问。
+    expect(result.current.chatActive).toBe(true)
+  })
+
+  it('内核与对话模式共用同一个 provider —— 命令查到的可用性就是模式用的那一个', async () => {
+    // 第二次取 provider 会拿到一个 unsupported 的实例。useTerminal 若不把自己
+    // 那个实例传给 createKernel（让内核自己再造一个），ask 就会查到 unsupported、
+    // 打诊断而不进模式 —— 于是这条 waitFor 会超时。
+    aiCtl.onlyFirstReady = true
+    const { result } = renderHook(() => useTerminal())
+    act(() => { result.current.submit('ask') })
+    await waitFor(() => expect(result.current.chatActive).toBe(true))
+  })
+})
+
+describe('useTerminal 对话模式的 scrollback 投影', () => {
+  const enterChat = async (result: { current: ReturnType<typeof useTerminal> }) => {
+    act(() => { result.current.submit('ask') })
+    await waitFor(() => expect(result.current.chatActive).toBe(true))
+  }
+  const chatBlocks = (result: { current: ReturnType<typeof useTerminal> }) =>
+    result.current.blocks.filter(b => b.kind === 'chat')
+  // 一轮问答彻底结束（phase 落回 idle）才算完，不能只等文本出现：useChat 的
+  // 单槽守卫要在收尾之后才放行下一次 send()。
+  const settle = async (result: { current: ReturnType<typeof useTerminal> }, n: number) => {
+    await waitFor(() => {
+      const cb = chatBlocks(result)
+      expect(cb).toHaveLength(n)
+      expect(cb[n - 1]!.phase).toBe('idle')
+      expect(outputOf([cb[n - 1]!])).toBe('答案')
+    })
+  }
+
+  it('一轮问答只留下一个 chat block —— 流式分片是就地更新，不是不断追加', async () => {
+    const { result } = renderHook(() => useTerminal())
+    await enterChat(result)
+    act(() => { result.current.submit('你好') })
+    await settle(result, 1)
+    // 分片有两个（'答'、'案'）。若每个分片都往 scrollback 追加一条，这里会是 3。
+    expect(chatBlocks(result)).toHaveLength(1)
+  })
+
+  it('同一会话连问两轮，两个 chat block 按提问顺序各占一条', async () => {
+    const { result } = renderHook(() => useTerminal())
+    await enterChat(result)
+    act(() => { result.current.submit('第一问') })
+    await settle(result, 1)
+    act(() => { result.current.submit('第二问') })
+    await settle(result, 2)
+    expect(chatBlocks(result).map(b => b.input)).toEqual(['第一问', '第二问'])
+  })
+
+  it('退出后再次 ask，上一段对话仍在 scrollback 里且不被新会话覆盖', async () => {
+    const { result } = renderHook(() => useTerminal())
+    await enterChat(result)
+    act(() => { result.current.submit('第一问') })
+    await settle(result, 1)
+    act(() => { result.current.submit('exit') })
+    await waitFor(() => expect(result.current.chatActive).toBe(false))
+
+    await enterChat(result)
+    act(() => { result.current.submit('第二问') })
+    await settle(result, 2)
+    // 新会话的 turn id 若从 t0 重新开始，第二问会就地覆盖第一问那个 block，
+    // 这里就只剩一条 —— useChat 的 idRef 跨会话单调递增是这条断言的前提。
+    expect(chatBlocks(result).map(b => b.input)).toEqual(['第一问', '第二问'])
+  })
+
+  it('模式内清屏后再提问，被清掉的对话不会复活', async () => {
+    const { result } = renderHook(() => useTerminal())
+    await enterChat(result)
+    act(() => { result.current.submit('第一问') })
+    await settle(result, 1)
+
+    // Ctrl+L：PromptLine 今天不感知模式，模式内清屏是一个按键的距离。
+    act(() => { result.current.clearScreen() })
+    expect(result.current.blocks).toEqual([])
+
+    act(() => { result.current.submit('第二问') })
+    await settle(result, 1)
+    // 「blocks 里找不到」既可能是新 turn，也可能是被有意移除的 turn。混为一谈的话，
+    // 下一个分片就会把清掉的第一问重新 push 回队尾。
+    expect(chatBlocks(result).map(b => b.input)).toEqual(['第二问'])
+    expect(result.current.blocks.map(b => b.input)).toEqual(['第二问'])
   })
 })

@@ -46,6 +46,9 @@ export function useChat(ai: AiProvider): Chat {
   const sessionPromiseRef = useRef<Promise<AiSession> | null>(null)
   const sessionRef = useRef<AiSession | null>(null)
   const abortRef = useRef<AbortController | null>(null)
+  // 故意跨会话单调递增，enter() 重置 turns/inputs/phase 时也不碰它：useTerminal
+  // 拿 turn.id 在 scrollback 里定位对应的 block，一旦重置，新会话的 t0 就会就地
+  // 覆盖上一段对话留在 scrollback 里的第一条。
   const idRef = useRef(0)
 
   // 释放当前持有的 session（若有）并中断在途生成。三处复用：

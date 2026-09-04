@@ -15,12 +15,18 @@ import type { Block } from './types'
 /** scrollback 上限，与真实终端一样丢弃最旧的输出。 */
 const MAX_BLOCKS = 500
 
+/** 对话模式的提示符。输入行与落进 scrollback 的 block 必须显示同一个，故只写一处。 */
+const CHAT_PROMPT = 'ask> '
+
 export function useTerminal() {
   const [blocks, setBlocks] = useState<Block[]>([])
   const [running, setRunning] = useState(false)
 
   const idRef = useRef(0)
   const abortRef = useRef<AbortController | null>(null)
+  // 已经投影进 scrollback 的 turn id。只增不减 —— 它要回答的是「这条 turn
+  // 投影过吗」，不是「它现在还在不在 blocks 里」。见下面 effect 里的注释。
+  const projectedRef = useRef(new Set<string>())
 
   const { theme, setTheme, themes } = useTheme()
 
@@ -73,14 +79,16 @@ export function useTerminal() {
 
   // useChat 管状态、blocks 管渲染，两者用一个 effect 相连，而不是让状态机
   // 直接写 blocks —— 解耦之后 useChat 可以脱离 blocks 独立测试。
-  //
-  // set-state-in-effect 规则针对的是「本可以在渲染期算出来的东西却绕道 effect」。
-  // 这里不是：对话内容必须在退出模式后仍留在 scrollback 里，而 leave() 会清空
-  // turns，所以它没法从 turns 派生出来 —— blocks 才是那份历史的归属地，effect
-  // 是把状态机的增量投影进去的唯一时机。两件事合成一个 effect、一次 setBlocks，
-  // 就是为了把这处抑制收窄到一行。
+  // 之所以不在渲染期从 turns 直接派生出这些 block：对话内容必须在退出模式后
+  // 仍留在 scrollback 里，而 leave() 会清空 turns —— blocks 才是那份历史的
+  // 归属地，effect 是把状态机的增量投影进去的唯一时机。
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    // 「第一次见到」的判定放在更新函数外面：更新函数必须是纯的（StrictMode 会
+    // 重放它），而这一步要写 ref。
+    const projected = projectedRef.current
+    const fresh = new Set(chat.turns.filter(t => !projected.has(t.id)).map(t => t.id))
+    for (const id of fresh) projected.add(id)
+
     setBlocks(prev => {
       // 退出模式会清空 turns，那一轮在途生成的收尾 patch 就再也到不了已经落进
       // scrollback 的 block —— 生成中输入 exit 的话，思考指示器会永远转下去。
@@ -92,17 +100,26 @@ export function useTerminal() {
         return prev.map(b => (stale(b) ? { ...b, phase: 'idle' as const, interrupted: true } : b))
       }
       const next = [...prev]
+      // 一次建索引，而不是每条 turn 各扫一遍 scrollback：流式生成时每个分片都
+      // 触发一次这个 effect，逐条 findIndex 是 O(turns x blocks)/分片。
+      const indexOf = new Map(next.map((b, i) => [b.id, i]))
       for (const t of chat.turns) {
-        const at = next.findIndex(b => b.id === t.id)
         const block: Block = {
-          id: t.id, prompt: 'ask> ', input: t.input,
+          id: t.id, prompt: CHAT_PROMPT, input: t.input,
           chunks: t.text === '' ? [] : [text(t.text)],
           exitCode: null, kind: 'chat', phase: t.phase,
           ...(t.error !== undefined ? { error: t.error } : {}),
           ...(t.interrupted === true ? { interrupted: true } : {}),
         }
-        if (at === -1) next.push(block)
-        else next[at] = block
+        const at = indexOf.get(t.id)
+        if (at !== undefined) { next[at] = block; continue }
+        // 到这里说明 blocks 里没有这条 turn，而这有两种截然不同的成因：它是新
+        // turn，或者它的 block 被有意移除过（模式内 Ctrl+L 清屏、MAX_BLOCKS
+        // 截断）。只看「找不到」会把两者混为一谈，于是下一个分片就把清掉的对话
+        // 重新 push 回队尾 —— 内容复活、顺序还错。只追加第一次见到的 turn。
+        if (!fresh.has(t.id)) continue
+        indexOf.set(t.id, next.length)
+        next.push(block)
       }
       return next.slice(-MAX_BLOCKS)
     })
@@ -113,8 +130,8 @@ export function useTerminal() {
     // 期比命令长（ask 早就返回 0 了模式还开着），把它塞进那个单槽会让「有没有
     // 命令在跑」和「在不在模式里」互相污染。useChat 有自己独立的 abort 槽。
     if (chat.active) {
-      // exit 与 Ctrl+D 是退出模式的两个入口。模式内不解析命令，
-      // 所以这里必须显式拦截 —— 否则 exit 会被当成给模型的一句话。
+      // 模式内不解析命令，所以退出必须在这里显式拦截 ——
+      // 否则 exit 会被原样当成给模型的一句话发出去。
       if (line.trim() === 'exit') { chat.leave(); return }
       chat.send(line)
       return
@@ -174,7 +191,7 @@ export function useTerminal() {
 
   return {
     blocks, running,
-    prompt: chat.active ? 'ask> ' : prompt,
+    prompt: chat.active ? CHAT_PROMPT : prompt,
     chatActive: chat.active,
     chatInputs: chat.inputs,
     submit, interrupt, complete,
