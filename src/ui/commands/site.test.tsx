@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { render } from '@testing-library/react'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { render, act } from '@testing-library/react'
 import { about } from './about'
 import { projects } from './projects'
 import { skills } from './skills'
 import { contact } from './contact'
 import { open as openCmd } from './open'
+import { matrix } from './matrix'
 import { makeTestCtx, runCmd } from '../../commands/testkit'
 import { chunkToText, type Chunk, type Ctx } from '../../core/process'
 
@@ -109,5 +110,74 @@ describe('open', () => {
 
   it('无参数返回 2', async () => {
     expect((await runCmd(openCmd, ['open'], ctx)).code).toBe(2)
+  })
+})
+
+describe('matrix', () => {
+  it('标记为 hidden', () => {
+    expect(matrix.hidden).toBe(true)
+  })
+
+  it('toText 给出可读的降级文本', async () => {
+    const r = await runCmd(matrix, ['matrix'], ctx)
+    const nodeChunk = r.chunks.find(c => c.type === 'node')!
+    expect((nodeChunk as { toText: () => string }).toText()).toBe('[matrix rain]')
+  })
+
+  describe('生命周期', () => {
+    beforeEach(() => { vi.useFakeTimers() })
+    afterEach(() => { vi.useRealTimers() })
+
+    it('多帧运行不抛出，卸载时清掉计时器', async () => {
+      const r = await runCmd(matrix, ['matrix'], ctx)
+      const nodeChunk = r.chunks.find(c => c.type === 'node')!
+      const clearIntervalSpy = vi.spyOn(window, 'clearInterval')
+      const clearTimeoutSpy = vi.spyOn(window, 'clearTimeout')
+
+      const { unmount } = render(<>{(nodeChunk as { node: React.ReactNode }).node}</>)
+      // 跑够多帧，确认动画期间不抛异常（act 会把组件抛出的错误重新抛给这里）
+      for (let i = 0; i < 10; i++) act(() => { vi.advanceTimersByTime(90) })
+
+      unmount()
+      expect(clearIntervalSpy).toHaveBeenCalled()
+      expect(clearTimeoutSpy).toHaveBeenCalled()
+
+      // 卸载后再推进时间：不应该再产生任何状态更新（不会有 act 警告，也不会抛出）
+      act(() => { vi.advanceTimersByTime(10_000) })
+
+      clearIntervalSpy.mockRestore()
+      clearTimeoutSpy.mockRestore()
+    })
+
+    it('运行两次互不影响，各自独立清理', async () => {
+      const r1 = await runCmd(matrix, ['matrix'], ctx)
+      const r2 = await runCmd(matrix, ['matrix'], ctx)
+      const n1 = r1.chunks.find(c => c.type === 'node')!
+      const n2 = r2.chunks.find(c => c.type === 'node')!
+      const clearIntervalSpy = vi.spyOn(window, 'clearInterval')
+
+      const m1 = render(<>{(n1 as { node: React.ReactNode }).node}</>)
+      const m2 = render(<>{(n2 as { node: React.ReactNode }).node}</>)
+      act(() => { vi.advanceTimersByTime(200) })
+
+      m1.unmount()
+      m2.unmount()
+      // 两个独立实例各自的 interval 都被清掉了（不是共享了一个计时器）
+      expect(clearIntervalSpy.mock.calls.length).toBeGreaterThanOrEqual(2)
+
+      clearIntervalSpy.mockRestore()
+    })
+
+    it('自身的停止计时器到点后自动清掉 interval，无需卸载', async () => {
+      const r = await runCmd(matrix, ['matrix'], ctx)
+      const nodeChunk = r.chunks.find(c => c.type === 'node')!
+      const clearIntervalSpy = vi.spyOn(window, 'clearInterval')
+
+      render(<>{(nodeChunk as { node: React.ReactNode }).node}</>)
+      act(() => { vi.advanceTimersByTime(6000) })
+
+      expect(clearIntervalSpy).toHaveBeenCalled()
+      clearIntervalSpy.mockRestore()
+    })
   })
 })

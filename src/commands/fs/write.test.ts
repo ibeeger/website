@@ -127,9 +127,10 @@ describe('rm', () => {
     expect(r.err).toBe('')
   })
 
-  it('拒绝删除根目录', async () => {
+  it('rm -rf / 是彩蛋，不真的删除', async () => {
     const r = await runCmd(rm, ['rm', '-rf', '/'], ctx)
     expect(r.code).toBe(1)
-    expect(r.err).toContain('Operation not permitted')
+    expect(r.out).toContain('nice try')
+    expect(ctx.vfs.isDir('/home/guest')).toBe(true)
   })
 })

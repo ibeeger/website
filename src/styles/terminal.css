@@ -53,6 +53,8 @@
 
 .boot { color: var(--green); white-space: pre; overflow-x: auto; }
 
+.matrix { color: var(--green); white-space: pre; overflow-x: auto; line-height: 1.1; }
+
 .prompt { color: var(--prompt); font-weight: 600; }
 
 .t-bold { font-weight: 700; }
