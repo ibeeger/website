@@ -5,6 +5,7 @@ import { about } from './about'
 import { projects } from './projects'
 import { skills } from './skills'
 import { contact } from './contact'
+import { resume } from './resume'
 import { open as openCmd } from './open'
 import { matrix } from './matrix'
 import { makeTestCtx, runCmd } from '../../commands/testkit'
@@ -81,6 +82,32 @@ describe('skills', () => {
     const nodeChunk = r.chunks.find(c => c.type === 'node')!
     const { container } = render(<>{(nodeChunk as { node: React.ReactNode }).node}</>)
     expect(container.querySelectorAll('.skill-bar').length).toBeGreaterThan(0)
+  })
+})
+
+// resume 是拼 about + skills + projects + contact 的旗舰命令，站点内容改动
+// 最容易波及它，之前却是 site.test.tsx 里唯一没有测试的兄弟命令。
+describe('resume', () => {
+  it('输出富节点', async () => {
+    const r = await runCmd(resume, ['resume'], ctx)
+    expect(r.code).toBe(0)
+    expect(r.chunks.some(c => c.type === 'node')).toBe(true)
+  })
+
+  it('降级文本汇聚了 about / skills / projects / contact 四个来源各自的内容', async () => {
+    const text = asText((await runCmd(resume, ['resume'], ctx)).chunks)
+    expect(text).toContain('一名工程师')          // about.md
+    expect(text).toContain('TypeScript')          // 技能（来自真实的 content/skills.json）
+    expect(text).toContain('alpha')                // projects/alpha.md
+    expect(text).toContain('第一个项目')            // projects/alpha.md
+    expect(text).toContain('GitHub')                // contact.md
+  })
+
+  it('toText 可被 grep 命中', async () => {
+    const r = await runCmd(resume, ['resume'], ctx)
+    const nodeChunk = r.chunks.find(c => c.type === 'node')!
+    const text = (nodeChunk as { toText: () => string }).toText()
+    expect(text.split('\n').some(l => /alpha/.test(l))).toBe(true)
   })
 })
 
