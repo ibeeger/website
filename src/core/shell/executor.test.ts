@@ -198,8 +198,23 @@ describe('命令列表与短路', () => {
     expect((await run('fail || hello')).out).toBe('hello\n')
   })
 
-  it('短路只跳过本条链，分号后的命令照常执行', async () => {
+  // 原标题「短路只跳过本条链」编码的是错误的模型：&&/|| 短路只跳过被短路的
+  // 那一项，而不是「一整条链」——被跳过项自己的 joinNext 仍然要用上一次真正
+  // 执行过的退出码去判断，下一项该不该跑。
+  it('短路只跳过被短路的那一项，分号后的命令照常执行', async () => {
     expect((await run('fail && ok ; hello')).out).toBe('hello\n')
+  })
+
+  it('混合链：fail && ok || hello —— && 跳过 ok，|| 仍然用 fail 的退出码接住，跑 hello', async () => {
+    const r = await run('fail && ok || hello')
+    expect(r.out).toBe('hello\n')
+    expect(r.code).toBe(0)
+  })
+
+  it('混合链：ok || fail && hello —— || 跳过 fail，&& 仍然用 ok 的退出码接住，跑 hello', async () => {
+    const r = await run('ok || fail && hello')
+    expect(r.out).toBe('okhello\n')
+    expect(r.code).toBe(0)
   })
 })
 

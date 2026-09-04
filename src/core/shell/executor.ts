@@ -8,33 +8,37 @@ import type { Chunk, Ctx, Writer } from '../process'
 
 const STDERR_STYLE = { color: 'red' }
 
+/**
+ * && / || 短路：每一项是否执行，只取决于「连接它与上一项的操作符」相对于
+ * 「上一项最终决定的退出码」的判断，逐项独立决定，被跳过的项不改变 last。
+ *
+ * 之前的实现（skipBranch）把「跳过 && / || 短路的那一项」误当成「跳过整条
+ * 由 && / || 串起来的链」，导致 `fail && ok || hello` 这类混合链丢掉自己的
+ * 兜底：fail 失败后本该只跳过 ok，让 || 拿 fail 的退出码去决定要不要跑
+ * hello（bash 里会跑，打印 hello、exit 0）；旧代码却把 ok 和 hello 一起跳过，
+ * 变成 exit=1、无输出。
+ *
+ * 逐项判断的模型天然正确：第 i 项是否执行，看 items[i-1].joinNext（连接
+ * i-1 与 i 的操作符）相对于当前 last 的结果——';' 或首项总是执行；'&&'
+ * 只在 last===0 时执行；'||' 只在 last!==0 时执行。跳过的项不更新 last，
+ * 所以后续项仍然在用「上一个真正执行过的命令」的退出码做判断，这正是
+ * bash 的语义。
+ */
 export async function execute(ast: Ast, ctx: Ctx, out: Writer): Promise<number> {
   let last = ctx.lastExitCode
-  let i = 0
-  while (i < ast.items.length) {
+  for (let i = 0; i < ast.items.length; i++) {
     const item = ast.items[i]!
+    const join = i === 0 ? null : ast.items[i - 1]!.joinNext
+    const shouldRun =
+      join === null || join === ';' ||
+      (join === '&&' && last === 0) ||
+      (join === '||' && last !== 0)
+    if (!shouldRun) continue
+
     last = await runPipeline(item.pipeline, ctx, out)
     ctx.lastExitCode = last
-
-    const join = item.joinNext
-    if ((join === '&&' && last !== 0) || (join === '||' && last === 0)) {
-      i = skipBranch(ast, i)
-      continue
-    }
-    i++
   }
   return last
-}
-
-/** 短路：跳过后续由 && / || 串起来的项，直到跨过一个以 ; 或行尾结束的项。 */
-function skipBranch(ast: Ast, from: number): number {
-  let j = from
-  while (j < ast.items.length) {
-    const join = ast.items[j]!.joinNext
-    if (join !== '&&' && join !== '||') break
-    j++
-  }
-  return j + 1
 }
 
 async function runPipeline(pl: Pipeline, ctx: Ctx, out: Writer): Promise<number> {
