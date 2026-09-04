@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import type { VFS } from './vfs/vfs'
+import type { AiProvider } from './ai/languageModel'
 
 export type Style = {
   color?: string      // 语义色名（'red' | 'green' | 'blue' | 'dim' ...），映射到主题 CSS 变量
@@ -54,6 +55,7 @@ export interface Ctx {
   readonly vfs: VFS
   readonly registry: Registry
   readonly host: Host
+  readonly ai: AiProvider        // 浏览器内置模型，见 core/ai/languageModel
   readonly signal: AbortSignal   // Ctrl+C
 }
 
@@ -86,3 +88,4 @@ export function chunkToText(c: Chunk): string {
 }
 
 export type { VFS } from './vfs/vfs'
+export type { AiProvider, AiSession, AiStatus } from './ai/languageModel'

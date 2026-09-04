@@ -4,6 +4,8 @@ import { lex, ShellSyntaxError } from './shell/lexer'
 import { parse } from './shell/parser'
 import { execute } from './shell/executor'
 import { completePath } from './complete'
+import { createBrowserAi } from './ai/languageModel'
+import type { AiProvider } from './ai/languageModel'
 import type { Ctx, Host, Process, Writer } from './process'
 import type { VFS } from './vfs/vfs'
 
@@ -30,7 +32,9 @@ export function createKernel(opts: {
   host: Host
   commands?: Process[]
   env?: Record<string, string>
+  ai?: AiProvider              // 默认接真实浏览器 API；测试可注入替身
 }): Kernel {
+  const ai = opts.ai ?? createBrowserAi()
   const env = createEnv({ ...DEFAULT_ENV, ...opts.env })
   const registry = createRegistry()
   for (const c of opts.commands ?? []) registry.register(c)
@@ -48,6 +52,7 @@ export function createKernel(opts: {
       set cwd(v: string) { session.cwd = v; env.set('PWD', v) },
       get lastExitCode() { return session.lastExitCode },
       set lastExitCode(v: number) { session.lastExitCode = v },
+      ai,
       history: session.history,
       env, vfs: opts.vfs, registry, host: opts.host, signal,
     }

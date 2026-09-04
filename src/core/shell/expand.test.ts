@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
+import { createBrowserAi } from '../ai/languageModel'
 import { lex, type Word } from './lexer'
 import { parse } from './parser'
 import { createEnv } from './env'
@@ -25,7 +26,8 @@ beforeEach(() => {
       '/home/guest/projects/p.md': '',
     }),
     registry: createRegistry(),
-    host: noopHost,
+    ai: createBrowserAi(),
+  host: noopHost,
     signal: new AbortController().signal,
   }
 })

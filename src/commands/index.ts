@@ -30,6 +30,7 @@ import { cowsay } from './fun/cowsay'
 import { neofetch } from './fun/neofetch'
 import { fortune } from './fun/fortune'
 import { exit } from './fun/exit'
+import { ask } from './ai/ask'
 import type { Process } from '../core/process'
 
 export const builtins: Process[] = [
@@ -37,5 +38,6 @@ export const builtins: Process[] = [
   tree, find, touch, mkdir, rm,
   echo, grep, sort, uniq,
   help, man, whoami, uname, date, env, exportCmd, which, history, clear, theme,
+  ask,
   sudo, cowsay, neofetch, fortune, exit,
 ]

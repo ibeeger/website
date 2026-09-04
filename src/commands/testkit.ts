@@ -3,6 +3,52 @@ import { createRegistry } from '../core/registry'
 import { createEnv } from '../core/shell/env'
 import { createPipe } from '../core/pipe'
 import { chunkToText, type Chunk, type Ctx, type Host, type Process, type Writer } from '../core/process'
+import type { AiProvider, AiStatus } from '../core/ai/languageModel'
+
+export interface FakeAi extends AiProvider {
+  created: number              // createSession 被调了几次
+  destroyed: number            // session 被释放了几次
+  prompts: string[]            // 每次提问的完整 input
+  systemPrompts: string[]      // 每次会话的 system prompt
+}
+
+/**
+ * 假的浏览器模型。真实 API 只在 Chrome 且开了 flag 时存在，
+ * 单测里必须换掉 —— 但换掉的是浏览器，不是被测代码。
+ */
+export function fakeAi(
+  status: AiStatus,
+  chunks: string[] = [],
+  opts: { throwOnPrompt?: boolean } = {},
+): FakeAi {
+  const fake: FakeAi = {
+    created: 0,
+    destroyed: 0,
+    prompts: [],
+    systemPrompts: [],
+
+    async status() { return status },
+
+    async createSession({ systemPrompt }) {
+      fake.created++
+      fake.systemPrompts.push(systemPrompt)
+      return {
+        promptStreaming(input, promptOpts) {
+          fake.prompts.push(input)
+          return (async function* () {
+            if (opts.throwOnPrompt) throw new Error('模型炸了')
+            for (const c of chunks) {
+              if (promptOpts?.signal?.aborted) throw new Error('aborted')
+              yield c
+            }
+          })()
+        },
+        destroy() { fake.destroyed++ },
+      }
+    },
+  }
+  return fake
+}
 
 export const testHost: Host = {
   clear() {},
@@ -32,6 +78,7 @@ export function makeTestCtx(files: Record<string, string> = DEFAULT_FILES): Ctx 
     vfs: buildInitialVfs(files, () => 1_700_000_000_000),
     registry: createRegistry(),
     host: testHost,
+    ai: fakeAi({ kind: 'unsupported' }),
     signal: new AbortController().signal,
   }
 }

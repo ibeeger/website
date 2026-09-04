@@ -5,6 +5,7 @@ import { execute } from './executor'
 import { createEnv } from './env'
 import { buildInitialVfs } from '../vfs/bootstrap'
 import { createRegistry } from '../registry'
+import { createBrowserAi } from '../ai/languageModel'
 import { chunkToText, node, type Chunk, type Ctx, type Host, type Process, type Writer } from '../process'
 
 const noopHost: Host = {
@@ -64,7 +65,7 @@ beforeEach(() => {
     cwd: '/home/guest', lastExitCode: 0, history: [],
     env: createEnv({ HOME: '/home/guest' }),
     vfs: buildInitialVfs({ '/home/guest/keep.txt': 'old\n' }),
-    registry, host: noopHost,
+    registry, host: noopHost, ai: createBrowserAi(),
     signal: new AbortController().signal,
   }
 })
