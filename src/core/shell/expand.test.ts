@@ -10,6 +10,7 @@ import type { Ctx, Host } from '../process'
 
 const noopHost: Host = {
   clear() {}, setTheme() {}, listThemes() { return [] }, currentTheme() { return 'x' },
+  enterChat() {},
 }
 
 let ctx: Ctx

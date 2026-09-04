@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { ask } from './ask'
-import { makeTestCtx, runCmd, fakeAi } from '../testkit'
+import { makeTestCtx, runCmd, fakeAi, recordingHost } from '../testkit'
 import type { AiStatus } from '../../core/ai/languageModel'
 
 const FILES = {
@@ -14,15 +14,6 @@ const ctxWith = (status: AiStatus, chunks: string[] = []) => {
   const ai = fakeAi(status, chunks)
   return { ctx: { ...ctx, ai }, ai }
 }
-
-describe('ask —— 用法', () => {
-  it('没有问题也没有管道输入时打印用法，退出码 2', async () => {
-    const { ctx } = ctxWith({ kind: 'ready' })
-    const r = await runCmd(ask, ['ask'], ctx)
-    expect(r.code).toBe(2)
-    expect(r.err).toContain('用法')
-  })
-})
 
 describe('ask —— 可用性判断', () => {
   const unavailableCases: [AiStatus, string][] = [
@@ -136,5 +127,45 @@ describe('ask —— 中断', () => {
     const r = await runCmd(ask, ['ask', 'hi'], ctx)
     expect(r.out).toBe('')
     expect(r.code).toBe(1)
+  })
+})
+
+describe('ask —— 进入对话模式', () => {
+  it('无参数且模型 ready 时请求进入对话模式，退出码 0', async () => {
+    const host = recordingHost()
+    const ctx = { ...makeTestCtx(FILES), host, ai: fakeAi({ kind: 'ready' }) }
+    const r = await runCmd(ask, ['ask'], ctx)
+    expect(r.code).toBe(0)
+    expect(host.chatCalls).toHaveLength(1)
+  })
+
+  it('进入模式时把简历作为 systemPrompt 带上', async () => {
+    const host = recordingHost()
+    const ctx = { ...makeTestCtx(FILES), host, ai: fakeAi({ kind: 'ready' }) }
+    await runCmd(ask, ['ask'], ctx)
+    expect(host.chatCalls[0]!.systemPrompt).toContain('全栈工程师，专注前端架构')
+  })
+
+  it('模型不可用时不进入模式 —— 不能让用户进去才发现跑不了', async () => {
+    const host = recordingHost()
+    const ctx = { ...makeTestCtx(FILES), host, ai: fakeAi({ kind: 'unsupported' }) }
+    const r = await runCmd(ask, ['ask'], ctx)
+    expect(host.chatCalls).toHaveLength(0)
+    expect(r.code).toBe(1)
+    expect(r.err).toContain('chrome://flags')
+  })
+
+  it('带问题时是一次性问答，不进入模式', async () => {
+    const host = recordingHost()
+    const ctx = { ...makeTestCtx(FILES), host, ai: fakeAi({ kind: 'ready' }, ['答']) }
+    await runCmd(ask, ['ask', '你好'], ctx)
+    expect(host.chatCalls).toHaveLength(0)
+  })
+
+  it('有管道输入时是一次性问答，不进入模式 —— 管道场景没有交互可言', async () => {
+    const host = recordingHost()
+    const ctx = { ...makeTestCtx(FILES), host, ai: fakeAi({ kind: 'ready' }, ['答']) }
+    await runCmd(ask, ['ask'], ctx, '一段文本\n')
+    expect(host.chatCalls).toHaveLength(0)
   })
 })

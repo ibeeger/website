@@ -32,6 +32,8 @@ export interface Host {
   setTheme(name: string): void
   listThemes(): string[]
   currentTheme(): string
+  /** 请求 UI 进入对话模式。命令调用后立即返回，不等待模式结束。 */
+  enterChat(opts: { systemPrompt: string }): void
 }
 
 export interface Env {

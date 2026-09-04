@@ -5,6 +5,7 @@ import { chunkToText, type Chunk, type Host, type Process, type Writer } from '.
 
 const noopHost: Host = {
   clear() {}, setTheme() {}, listThemes() { return ['dracula'] }, currentTheme() { return 'dracula' },
+  enterChat() {},
 }
 
 const echoStub: Process = {

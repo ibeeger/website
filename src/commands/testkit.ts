@@ -55,6 +55,20 @@ export const testHost: Host = {
   setTheme() {},
   listThemes() { return ['dracula', 'nord'] },
   currentTheme() { return 'dracula' },
+  enterChat() {},
+}
+
+export interface RecordingHost extends Host {
+  chatCalls: { systemPrompt: string }[]
+}
+
+export function recordingHost(): RecordingHost {
+  const calls: { systemPrompt: string }[] = []
+  return {
+    ...testHost,
+    chatCalls: calls,
+    enterChat(opts) { calls.push(opts) },
+  }
 }
 
 export const DEFAULT_FILES: Record<string, string> = {

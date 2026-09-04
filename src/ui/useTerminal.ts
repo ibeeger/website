@@ -32,6 +32,7 @@ export function useTerminal() {
       setTheme() { /* 下面每次渲染都会覆盖成最新实现 */ },
       listThemes() { return [] },
       currentTheme() { return '' },
+      enterChat() { /* Task 4 接入 */ },
     },
   }))
 
@@ -48,6 +49,7 @@ export function useTerminal() {
     setTheme,
     listThemes: () => themes,
     currentTheme: () => theme,
+    enterChat: () => { /* Task 4 接入 */ },
   }
 
   // 惰性初始化：内核只在首次渲染时构造一次。

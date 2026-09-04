@@ -10,6 +10,7 @@ import { chunkToText, node, type Chunk, type Ctx, type Host, type Process, type 
 
 const noopHost: Host = {
   clear() {}, setTheme() {}, listThemes() { return [] }, currentTheme() { return 'x' },
+  enterChat() {},
 }
 
 /** 收集输出的终端 writer 替身 */

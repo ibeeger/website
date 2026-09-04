@@ -5,6 +5,7 @@ export type UiHooks = {
   setTheme(name: string): void
   listThemes(): string[]
   currentTheme(): string
+  enterChat(opts: { systemPrompt: string }): void
 }
 
 /**
@@ -17,5 +18,6 @@ export function createUiHost(box: { current: UiHooks }): Host {
     setTheme(name) { box.current.setTheme(name) },
     listThemes() { return box.current.listThemes() },
     currentTheme() { return box.current.currentTheme() },
+    enterChat(opts) { box.current.enterChat(opts) },
   }
 }

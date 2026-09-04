@@ -95,11 +95,16 @@ export const ask: Process = {
 
     const question = args.join(' ').trim()
     const piped = io.stdin ? (await readAll(io.stdin)).trim() : ''
+
+    // 无参数、无管道 —— 这是「进入对话模式」的信号。
+    // 先确认模型可用再进，否则用户进去才发现跑不了，还得再学一次怎么退出。
     if (!question && !piped) {
-      io.stderr.writeLine('用法: ask [--status] [问题...]')
-      io.stderr.writeLine('例如: ask 你会 React 吗')
-      io.stderr.writeLine('      cat about.md | ask 用一句话总结')
-      return 2
+      if (status.kind !== 'ready') {
+        for (const l of DIAGNOSIS[status.kind]) io.stderr.writeLine(l)
+        return 1
+      }
+      ctx.host.enterChat({ systemPrompt: buildSystemPrompt(ctx) })
+      return 0
     }
 
     if (status.kind !== 'ready') {
