@@ -1,15 +1,7 @@
 import { completePath } from '../../core/complete'
+import { patternToRegex as toRegex } from '../../core/shell/glob'
 import type { Inode } from '../../core/vfs/vfs'
 import type { Process } from '../../core/process'
-
-/** 把 glob 模式转成正则。与 expand.ts 中的规则保持一致。 */
-function toRegex(pattern: string): RegExp {
-  const escaped = pattern
-    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-    .replace(/\*/g, '[^/]*')
-    .replace(/\?/g, '[^/]')
-  return new RegExp(`^${escaped}$`)
-}
 
 /** 拼接路径，避免 `find /` 产出 `//home` 这类双斜杠。 */
 function joinPath(base: string, name: string): string {

@@ -1,6 +1,7 @@
 import type { Ctx } from '../process'
 import type { Word } from './lexer'
 import { basename, dirname } from '../vfs/path'
+import { patternToRegex } from './glob'
 
 const VAR_RE = /\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)|\$\?/g
 
@@ -10,15 +11,6 @@ function expandVars(s: string, ctx: Ctx): string {
     const name = braced ?? bare!
     return ctx.env.get(name) ?? ''
   })
-}
-
-/** 把 glob 模式转成正则。只转义正则元字符，* 和 ? 保留为通配。 */
-function patternToRegex(pattern: string): RegExp {
-  const escaped = pattern
-    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-    .replace(/\*/g, '[^/]*')
-    .replace(/\?/g, '[^/]')
-  return new RegExp(`^${escaped}$`)
 }
 
 /**
