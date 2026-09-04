@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import { staticResumePlugin } from './src/seo/vite-plugin-static-resume'
+import { staticResumePlugin } from './src/seo/vite-plugin-static-resume.ts'
 
 export default defineConfig({
   plugins: [

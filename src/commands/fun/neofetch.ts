@@ -29,7 +29,7 @@ export const neofetch: Process = {
       ['Shell', ctx.env.get('SHELL') ?? '/bin/bash'],
       ['Terminal', 'terminal-site'],
       ['Theme', ctx.host.currentTheme()],
-      ['Commands', String(ctx.registry.list().length)],
+      ['Commands', String(ctx.registry.list().filter(p => !p.hidden).length)],
     ]
 
     const rows = Math.max(LOGO.length, info.length)

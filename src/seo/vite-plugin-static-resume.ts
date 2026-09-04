@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Plugin } from 'vite'
-import { renderStaticResume } from './renderStaticResume'
+import { renderStaticResume } from './renderStaticResume.ts'
 
 const CONTENT_DIR = 'src/content'
 

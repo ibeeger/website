@@ -49,6 +49,24 @@ describe('neofetch', () => {
     expect(r.out).toContain('guest@terminal')
     expect(r.out).toContain('Shell')
   })
+
+  it('Commands 计数与 help 会列出的数量一致 —— 不把隐藏的彩蛋（包括 neofetch 自己）算进去', async () => {
+    const visible: Process = { name: 'visible', description: '看得见', async run() { return 0 } }
+    const secretOne: Process = { name: 'secret-one', description: '看不见', hidden: true, async run() { return 0 } }
+    ctx.registry.register(visible)
+    ctx.registry.register(secretOne)
+    ctx.registry.register(neofetch) // neofetch 本身也是 hidden: true 的彩蛋
+
+    // registry 里现在有 3 个（visible、secret-one、neofetch 自己），
+    // 但 help 只会列出其中不 hidden 的 1 个（visible）—— neofetch 的计数必须跟 help 一致，
+    // 而不是报出 registry.list() 的原始长度 3。
+    const helpVisibleCount = ctx.registry.list().filter(p => !p.hidden).length
+    expect(helpVisibleCount).toBe(1)
+
+    const r = await runCmd(neofetch, ['neofetch'], ctx)
+    expect(r.out).toContain(`Commands: ${helpVisibleCount}`)
+    expect(r.out).not.toContain('Commands: 3')
+  })
 })
 
 describe('fortune', () => {
