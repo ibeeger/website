@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import './ui/test-setup' // 注册 afterEach(cleanup)，见 test-setup.ts 顶部注释
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 
