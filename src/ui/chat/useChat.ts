@@ -81,7 +81,14 @@ export function useChat(ai: AiProvider): Chat {
     setInputs([])
     const p = ai.createSession({ systemPrompt: opts.systemPrompt })
     sessionPromiseRef.current = p
-    void p.then(s => { sessionRef.current = s }).catch(() => {})
+    // 代次守卫：只有 p 仍是"当前这一代"的 session promise，才允许它写缓存。
+    // 没有这层守卫时，disposeSession() 里给同一个 p 注册的 destroy 回调和这里
+    // 的缓存回调谁先谁后完全看 resolve 顺序——旧 session 的缓存写入哪怕排在
+    // 它自己的 destroy 之后，也可能在下一次 enter()/leave() 时把一个已经
+    // destroy 过的 session 重新"救活"进缓存，导致它被 disposeSession() 再
+    // destroy 一次，而真正在途的新 session 因为 sessionRef 已经"有值"
+    // （其实是旧值）走了同步分支，永远不会被自己的 promise.then(destroy) 兜底。
+    void p.then(s => { if (sessionPromiseRef.current === p) sessionRef.current = s }).catch(() => {})
   }, [ai, disposeSession])
 
   const leave = useCallback(() => {
@@ -127,6 +134,10 @@ export function useChat(ai: AiProvider): Chat {
     void (async () => {
       try {
         const session = await pending
+        // 会话创建期间用户就已经 interrupt() 了：不该再向常驻显存的模型
+        // 补发一次 promptStreaming() 请求——这一步做不做完全取决于 provider
+        // 是否尊重 signal，而"中断后不下发"应该是 hook 自己保证的不变量。
+        if (ac.signal.aborted) { patch(id, { phase: 'idle', interrupted: true }); return }
         let first = true
         for await (const piece of session.promptStreaming(line, { signal: ac.signal })) {
           // 中断不能只靠 provider 主动抛异常：真实 API 也可能只是安静地
