@@ -2,6 +2,7 @@
 import './test-setup' // 注册 afterEach(cleanup)，见 test-setup.ts 顶部注释
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { renderHook, act, waitFor } from '@testing-library/react'
+import { StrictMode } from 'react'
 import { useTerminal } from './useTerminal'
 import { chunkToText, type Process } from '../core/process'
 
@@ -55,6 +56,8 @@ vi.mock('../core/kernel', async (importOriginal) => {
 // kernel（命令查可用性）和 useChat（模式里真正提问），两边必须是同一个 provider。
 // 默认返回同一个就绪的实例；两个开关分别用来制造「模型提问就炸」和「第二次
 // 取 provider 会拿到另一个（不可用的）实例」这两种场景，用完在 afterEach 复位。
+// 开关必须在 renderHook 之前设置：provider 是 useTerminal 挂载时一次性取定的
+// （useState 惰性初始化），挂载之后再改，这次挂载读不到，用例会静默失效。
 const aiCtl = vi.hoisted(() => ({ throwOnPrompt: false, onlyFirstReady: false, calls: 0 }))
 
 vi.mock('../core/ai/languageModel', async (importOriginal) => {
@@ -301,6 +304,13 @@ describe('useTerminal 对话模式', () => {
 })
 
 describe('useTerminal 对话模式的 scrollback 投影', () => {
+  // 这一组整体跑在 StrictMode 下：生产的 main.tsx 就是 StrictMode，而这里的投影
+  // 逻辑把「这条 turn 第一次见到吗」的判定和 ref 写入放在 setBlocks 的更新函数
+  // 外面，靠的正是「更新函数必须纯净」这条约束。不在 StrictMode 下跑的话，把那次
+  // 写入挪回更新函数里（一个看起来纯属收拢的重构）会让对话在生产里完全不显示，
+  // 而普通渲染下的用例一条都不会红。
+  const mount = () => renderHook(() => useTerminal(), { wrapper: StrictMode })
+
   const enterChat = async (result: { current: ReturnType<typeof useTerminal> }) => {
     act(() => { result.current.submit('ask') })
     await waitFor(() => expect(result.current.chatActive).toBe(true))
@@ -319,7 +329,7 @@ describe('useTerminal 对话模式的 scrollback 投影', () => {
   }
 
   it('一轮问答只留下一个 chat block —— 流式分片是就地更新，不是不断追加', async () => {
-    const { result } = renderHook(() => useTerminal())
+    const { result } = mount()
     await enterChat(result)
     act(() => { result.current.submit('你好') })
     await settle(result, 1)
@@ -328,7 +338,7 @@ describe('useTerminal 对话模式的 scrollback 投影', () => {
   })
 
   it('同一会话连问两轮，两个 chat block 按提问顺序各占一条', async () => {
-    const { result } = renderHook(() => useTerminal())
+    const { result } = mount()
     await enterChat(result)
     act(() => { result.current.submit('第一问') })
     await settle(result, 1)
@@ -338,7 +348,7 @@ describe('useTerminal 对话模式的 scrollback 投影', () => {
   })
 
   it('退出后再次 ask，上一段对话仍在 scrollback 里且不被新会话覆盖', async () => {
-    const { result } = renderHook(() => useTerminal())
+    const { result } = mount()
     await enterChat(result)
     act(() => { result.current.submit('第一问') })
     await settle(result, 1)
@@ -354,7 +364,7 @@ describe('useTerminal 对话模式的 scrollback 投影', () => {
   })
 
   it('模式内清屏后再提问，被清掉的对话不会复活', async () => {
-    const { result } = renderHook(() => useTerminal())
+    const { result } = mount()
     await enterChat(result)
     act(() => { result.current.submit('第一问') })
     await settle(result, 1)
