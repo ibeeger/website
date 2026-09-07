@@ -9,6 +9,15 @@ import { BOOT_STORAGE_KEY } from './BootSequence'
 // 每个渲染了 <Terminal /> 的测试都会因为不相关的 TypeError 而炸掉。
 Element.prototype.scrollIntoView ??= () => {}
 
+// 对话模式要一个「就绪」的模型：jsdom 里没有 LanguageModel 全局，真实
+// createBrowserAi() 永远返回 unsupported，ask 会走诊断分支、根本进不了模式。
+// 换掉的是浏览器而不是被测代码，做法与 useTerminal.test.tsx 一致。
+vi.mock('../core/ai/languageModel', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../core/ai/languageModel')>()
+  const { fakeAi } = await import('../commands/testkit')
+  return { ...actual, createBrowserAi: () => fakeAi({ kind: 'ready' }, ['答', '案']) }
+})
+
 // Task 21 加入了开机动画，未播放过时会先逐行打字再挂载 PromptLine。这里的测试
 // 关心的是命令运行期间的焦点/disabled 行为，不是开机动画本身（那部分由
 // BootSequence.test.tsx 单独覆盖），所以标记为「已播放过」以跳过动画、
@@ -172,5 +181,136 @@ describe('Terminal', () => {
 
     expect(screen.queryByText(/reverse-i-search/)).toBeNull()
     expect(input.value).toBe('echo one')
+  })
+
+  it('对话模式下还没提交过任何输入时按 ↑ 没有效果', async () => {
+    render(<Terminal />)
+    const input = screen.getByRole('textbox')
+    fireEvent.change(input, { target: { value: 'ask' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await screen.findByText(/ask> /, { trim: false })
+
+    fireEvent.keyDown(input, { key: 'ArrowUp' })
+    expect((input as HTMLInputElement).value).toBe('')
+  })
+
+  it('对话模式下只有一条输入时反复按 ↑ 停在这一条，不会越界翻出 undefined', async () => {
+    render(<Terminal />)
+    const input = screen.getByRole('textbox')
+    fireEvent.change(input, { target: { value: 'ask' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await screen.findByText(/ask> /, { trim: false })
+    fireEvent.change(input, { target: { value: '唯一一条' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    fireEvent.keyDown(input, { key: 'ArrowUp' })
+    expect((input as HTMLInputElement).value).toBe('唯一一条')
+    fireEvent.keyDown(input, { key: 'ArrowUp' })
+    expect((input as HTMLInputElement).value).toBe('唯一一条')
+  })
+
+  it('对话模式下还没按过 ↑ 时按 ↓ 没有效果', async () => {
+    render(<Terminal />)
+    const input = screen.getByRole('textbox')
+    fireEvent.change(input, { target: { value: 'ask' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await screen.findByText(/ask> /, { trim: false })
+    fireEvent.change(input, { target: { value: '问题一' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    // 没先按过 ↑（游标仍是 null）就按 ↓：不该凭空翻出刚提交的那一条。
+    fireEvent.keyDown(input, { key: 'ArrowDown' })
+    expect((input as HTMLInputElement).value).toBe('')
+  })
+
+  it('对话模式下 Tab 不做补全 —— 模式内没有路径可补', async () => {
+    render(<Terminal />)
+    const input = screen.getByRole('textbox')
+    fireEvent.change(input, { target: { value: 'ask' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    // 提示符尾随空格是格式的一部分，关掉默认 trim 归一化（同 PromptLine.test.tsx）——
+    // 否则 testing-library 会把它连同 "ask>" 后的空格一起削掉，正则永远匹配不上。
+    await screen.findByText(/ask> /, { trim: false })
+    fireEvent.change(input, { target: { value: 'ab' } })
+    fireEvent.keyDown(input, { key: 'Tab' })
+    expect((input as HTMLInputElement).value).toBe('ab')
+  })
+
+  it('对话模式下 ↑ 翻的是本次对话的输入，不是 shell 历史', async () => {
+    render(<Terminal />)
+    const input = screen.getByRole('textbox')
+    // 先在 shell 里留一条历史，它不该在模式内被翻出来。
+    // 必须等它真正跑完（abortRef 释放）再提交下一条：submit() 的重入守卫会
+    // 无声吞掉「上一条命令还没收尾」时提交的新命令，pwd 和 ask 挨在一起发送
+    // 会导致 ask 被当成重入直接丢弃。
+    fireEvent.change(input, { target: { value: 'pwd' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() => expect(screen.getByText('/home/guest')).toBeTruthy())
+    fireEvent.change(input, { target: { value: 'ask' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    // 提示符尾随空格是格式的一部分，关掉默认 trim 归一化（同 PromptLine.test.tsx）——
+    // 否则 testing-library 会把它连同 "ask>" 后的空格一起削掉，正则永远匹配不上。
+    await screen.findByText(/ask> /, { trim: false })
+    fireEvent.change(input, { target: { value: '第一问' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    fireEvent.keyDown(input, { key: 'ArrowUp' })
+    expect((input as HTMLInputElement).value).toBe('第一问')
+  })
+
+  it('对话模式下 ↓ 走到底回到空行，和 shell 历史的下沿行为一致', async () => {
+    render(<Terminal />)
+    const input = screen.getByRole('textbox')
+    fireEvent.change(input, { target: { value: 'ask' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await screen.findByText(/ask> /, { trim: false })
+    fireEvent.change(input, { target: { value: '问题一' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    fireEvent.keyDown(input, { key: 'ArrowUp' })
+    expect((input as HTMLInputElement).value).toBe('问题一')
+    fireEvent.keyDown(input, { key: 'ArrowDown' })
+    expect((input as HTMLInputElement).value).toBe('')
+  })
+
+  it('对话模式下提交新一轮后 ↑ 从最新一条重新开始，而不是接着上次翻的位置', async () => {
+    render(<Terminal />)
+    const input = screen.getByRole('textbox')
+    fireEvent.change(input, { target: { value: 'ask' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await screen.findByText(/ask> /, { trim: false })
+
+    fireEvent.change(input, { target: { value: '问题一' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    // 等第一轮真正生成完（回到 idle），否则 chat.send 的重入守卫会把
+    // 第二轮悄悄丢掉——跟 shell 的 abortRef 守卫是同一类问题。
+    await waitFor(() => expect(screen.getByText('答案')).toBeTruthy())
+
+    // 先把游标停在第一条上
+    fireEvent.keyDown(input, { key: 'ArrowUp' })
+    expect((input as HTMLInputElement).value).toBe('问题一')
+
+    // 不经过 ↓ 回到空行，直接改写并提交第二轮
+    fireEvent.change(input, { target: { value: '问题二' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    // 游标若没有在提交后复位，这里会从上次停的位置（index 0）继续，
+    // 翻出的还是"问题一"而不是刚提交的"问题二"。
+    fireEvent.keyDown(input, { key: 'ArrowUp' })
+    expect((input as HTMLInputElement).value).toBe('问题二')
+  })
+
+  it('对话模式下输入为空时 Ctrl+D 退出模式，回到 shell 提示符', async () => {
+    const { container } = render(<Terminal />)
+    const input = screen.getByRole('textbox')
+    fireEvent.change(input, { target: { value: 'ask' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await screen.findByText(/ask> /, { trim: false })
+
+    fireEvent.keyDown(input, { key: 'd', ctrlKey: true })
+
+    // 只看当前输入行的提示符，不看 scrollback 里那条已经存在的
+    // "guest@terminal:~$ ask" —— 后者本来就一直在，不能证明模式已经退出。
+    await waitFor(() => expect(
+      container.querySelector('.promptline .prompt')?.textContent,
+    ).toContain('guest@terminal'))
   })
 })

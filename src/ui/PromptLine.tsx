@@ -12,6 +12,7 @@ export type PromptLineProps = {
   onInterrupt(): void
   onClearScreen(): void
   onReverseSearch(): void
+  onEof?(): void
   /** 搜索态下用它替换自绘文本；真 input 的值仍是用户键入的查询串。 */
   displayOverride?: string
   /** 搜索态下自绘光标该停在 displayOverride 里的哪个位置，而不是真 input 的 selectionStart。 */
@@ -68,6 +69,11 @@ export function PromptLine(props: PromptLineProps) {
     if (e.ctrlKey) {
       switch (e.key) {
         case 'c': e.preventDefault(); props.onInterrupt(); return
+        // 与真实 shell 一致：只有输入为空时 Ctrl+D 才是 EOF，
+        // 非空时它是「删右边一个字符」，交给浏览器默认行为。
+        case 'd':
+          if (value === '' && props.onEof) { e.preventDefault(); props.onEof(); return }
+          return
         case 'l': e.preventDefault(); props.onClearScreen(); return
         case 'r': e.preventDefault(); props.onReverseSearch(); return
         case 'a': e.preventDefault(); setAndFocus(value, 0); return

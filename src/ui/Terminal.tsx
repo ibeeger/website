@@ -52,6 +52,7 @@ export function Terminal() {
   // 守卫很容易只加在一边 —— 反向搜索时点屏幕上的 ^C 不会关闭搜索框、点 Tab
   // 会拿过时的 input 去补全，而物理键盘上一切正常。
   const doComplete = () => {
+    if (term.chatActive) return   // 模式内没有路径可补
     if (search.active) return
     const r = runComplete(input)
     setInput(r.line)
@@ -66,16 +67,38 @@ export function Terminal() {
     history.reset()
   }
 
+  // Terminal 内新增一个模式内的游标。模式退出时 chatActive 变假，
+  // 游标自然失效 —— 不需要额外清理，因为 inputs 本身也被 leave() 清空了。
+  const [chatCursor, setChatCursor] = useState<number | null>(null)
+
   // 真实 bash 里 Ctrl+R 之后按 ↑/↓ 会先退出搜索、再照常做历史导航——不是原地
   // 挡住。这里选的就是这个语义：先关掉搜索框（search.cancel 不影响 input 里
   // 那份没被搜索碰过的草稿），再对 input 做正常的 prev/next。不这样做的话，
   // ↑/↓ 会在搜索态下悄悄改写藏在覆盖层背后的 input 值，用户在搜索框里却看不到。
   const doHistoryPrev = () => {
+    if (term.chatActive) {
+      const items = term.chatInputs
+      if (items.length === 0) return
+      const next = chatCursor === null ? items.length - 1 : Math.max(0, chatCursor - 1)
+      setChatCursor(next)
+      setInput(items[next]!)
+      return
+    }
     if (search.active) search.cancel()
     setHint([])
     setInput(history.prev(input))
   }
   const doHistoryNext = () => {
+    if (term.chatActive) {
+      const items = term.chatInputs
+      if (chatCursor === null) return
+      const next = chatCursor + 1
+      // 走过最后一条就回到空行，和 shell 历史的下沿行为一致
+      if (next >= items.length) { setChatCursor(null); setInput(''); return }
+      setChatCursor(next)
+      setInput(items[next]!)
+      return
+    }
     if (search.active) search.cancel()
     setHint([])
     setInput(history.next())
@@ -155,6 +178,7 @@ export function Terminal() {
             return
           }
           submit(input)
+          setChatCursor(null)
         }}
         onHistoryPrev={doHistoryPrev}
         onHistoryNext={doHistoryNext}
@@ -162,6 +186,7 @@ export function Terminal() {
         onReverseSearch={() => (search.active ? search.next() : search.start())}
         onInterrupt={doInterrupt}
         onClearScreen={term.clearScreen}
+        onEof={() => { if (term.chatActive) term.interrupt() }}
       />}
       {booted && <MobileKeyBar onKey={handleMobileKey} />}
       <div ref={bottomRef} />

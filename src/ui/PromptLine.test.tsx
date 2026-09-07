@@ -104,4 +104,22 @@ describe('PromptLine', () => {
     const { input } = setup()
     expect(input.className).toBe('promptline-input')
   })
+
+  it('输入为空时 Ctrl+D 触发 onEof', async () => {
+    const onEof = vi.fn()
+    render(<PromptLine prompt="ask> " value="" onChange={vi.fn()} onSubmit={vi.fn()}
+      onHistoryPrev={vi.fn()} onHistoryNext={vi.fn()} onComplete={vi.fn()}
+      onReverseSearch={vi.fn()} onInterrupt={vi.fn()} onClearScreen={vi.fn()} onEof={onEof} />)
+    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'd', ctrlKey: true })
+    expect(onEof).toHaveBeenCalled()
+  })
+
+  it('输入非空时 Ctrl+D 不触发 onEof —— 与真实 shell 一致', async () => {
+    const onEof = vi.fn()
+    render(<PromptLine prompt="ask> " value="abc" onChange={vi.fn()} onSubmit={vi.fn()}
+      onHistoryPrev={vi.fn()} onHistoryNext={vi.fn()} onComplete={vi.fn()}
+      onReverseSearch={vi.fn()} onInterrupt={vi.fn()} onClearScreen={vi.fn()} onEof={onEof} />)
+    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'd', ctrlKey: true })
+    expect(onEof).not.toHaveBeenCalled()
+  })
 })
