@@ -24,7 +24,12 @@ export interface AiSession {
 
 export interface AiProvider {
   status(): Promise<AiStatus>
-  createSession(opts: { systemPrompt: string; signal?: AbortSignal }): Promise<AiSession>
+  createSession(opts: {
+    systemPrompt: string
+    signal?: AbortSignal
+    /** 模型未下载时，Chrome 会在 create() 期间下载并通过这个回调报进度（0–1）。 */
+    onProgress?(loaded: number): void
+  }): Promise<AiSession>
 }
 
 /** availability() 的返回值 → AiStatus。未知值降级为 unavailable。 */
@@ -40,9 +45,18 @@ interface RawSession {
   destroy(): void
 }
 
+/** create() 的 monitor 回调收到的对象——只用得到 downloadprogress 这一个事件。 */
+type Monitor = { addEventListener(type: string, listener: (e: { loaded: number }) => void): void }
+
+interface CreateOptions {
+  initialPrompts: [{ role: 'system'; content: string }]
+  signal?: AbortSignal
+  monitor?: (m: Monitor) => void
+}
+
 type LanguageModelGlobal = {
   availability?: () => Promise<string>
-  create?: (opts: unknown) => Promise<RawSession>
+  create?: (opts: CreateOptions) => Promise<RawSession>
 }
 
 function getGlobal(): LanguageModelGlobal | undefined {
@@ -80,7 +94,7 @@ export function createBrowserAi(): AiProvider {
       }
     },
 
-    async createSession({ systemPrompt, signal }) {
+    async createSession({ systemPrompt, signal, onProgress }) {
       const lm = getGlobal()
       if (typeof lm?.create !== 'function') {
         throw new Error('LanguageModel 不可用：应先调用 status() 判断')
@@ -88,6 +102,8 @@ export function createBrowserAi(): AiProvider {
       const raw = await lm.create({
         initialPrompts: [{ role: 'system', content: systemPrompt }],
         ...(signal ? { signal } : {}),
+        // 只在有人听的时候才注册 —— 不为没人听的事件付出代价
+        ...(onProgress ? { monitor: (m: Monitor) => { m.addEventListener('downloadprogress', e => onProgress(e.loaded)) } } : {}),
       })
       return {
         promptStreaming(input, opts) {

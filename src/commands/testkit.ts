@@ -47,6 +47,8 @@ export function fakeAi(
     // 依次落地，绝大多数用例不需要管这个。只有需要精确控制"哪个 session
     // 先 resolve"的用例（比如验证两次 enter() 之间的 resolve 时序）才用得上。
     deferSessions?: boolean
+    // createSession() 收到 onProgress 时依次回调的进度值（0–1）。
+    progress?: number[]
   } = {},
 ): FakeAi {
   const pendingSessions: Array<(session: AiSession) => void> = []
@@ -84,10 +86,12 @@ export function fakeAi(
 
     async status() { return status },
 
-    async createSession({ systemPrompt }) {
+    async createSession({ systemPrompt, onProgress }) {
       fake.created++
       const sessionId = fake.created
       fake.systemPrompts.push(systemPrompt)
+      // 真实实现里进度事件发生在 create() 期间，这里保持同样的时序
+      if (onProgress) for (const p of opts.progress ?? []) onProgress(p)
       if (opts.rejectSession) throw new Error('会话创建失败')
       if (opts.deferSessions) {
         return new Promise<AiSession>(resolve => { pendingSessions.push(resolve) })

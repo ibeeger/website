@@ -109,4 +109,37 @@ describe('createBrowserAi().createSession()', () => {
   it('全局不存在时 createSession 抛错 —— 调用方必须先查 status()', async () => {
     await expect(createBrowserAi().createSession({ systemPrompt: 's' })).rejects.toThrow()
   })
+
+  it('把 monitor 里的 downloadprogress 转发给 onProgress', async () => {
+    type Listener = (e: { loaded: number }) => void
+    let fire: Listener | null = null
+    stubGlobal({
+      availability: async () => 'downloadable',
+      create: async (opts: { monitor?: (m: { addEventListener(t: string, l: Listener): void }) => void }) => {
+        opts.monitor?.({ addEventListener(t, l) { if (t === 'downloadprogress') fire = l } })
+        return { promptStreaming: () => streamOf([]), destroy() {} }
+      },
+    })
+
+    const seen: number[] = []
+    await createBrowserAi().createSession({ systemPrompt: 's', onProgress: p => seen.push(p) })
+    fire!({ loaded: 0.5 })
+
+    expect(seen).toEqual([0.5])
+  })
+
+  it('不传 onProgress 时不注册 monitor —— 不为没人听的事件付出代价', async () => {
+    let sawMonitor = false
+    stubGlobal({
+      availability: async () => 'available',
+      create: async (opts: { monitor?: unknown }) => {
+        sawMonitor = opts.monitor !== undefined
+        return { promptStreaming: () => streamOf([]), destroy() {} }
+      },
+    })
+
+    await createBrowserAi().createSession({ systemPrompt: 's' })
+
+    expect(sawMonitor).toBe(false)
+  })
 })

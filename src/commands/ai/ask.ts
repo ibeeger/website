@@ -24,11 +24,13 @@ const DIAGNOSIS: Record<Exclude<AiStatus['kind'], 'ready'>, string[]> = {
     '硬件门槛大致是 22GB 可用磁盘，外加 4GB 以上显存或 16GB 以上内存。',
     '这是 Chrome 定的，不是我定的。',
   ],
+  // 这条只在「无参数进入对话模式」的前置检查里出现——一次性问答
+  // (`ask <问题>`) 会直接触发下载，不再走这条早退分支。
   downloadable: [
     '内置模型还没下载到本地。',
     '',
-    '首次使用要下载约 2GB 的模型文件，Chrome 会在后台进行。',
-    '下完之后再跑一次 `ask` 就可以了。',
+    '用 `ask <问题>` 提问会自动触发下载（约 2GB，只需一次），',
+    '下载完成后可以直接提问。',
   ],
   downloading: [
     '模型正在下载，还没就绪。',
@@ -107,7 +109,13 @@ export const ask: Process = {
       return 0
     }
 
-    if (status.kind !== 'ready') {
+    // downloadable 是唯一「现在做点什么就能变可用」的状态。
+    // 只提示「去下载」是把一个 2GB 的黑箱丢给用户，所以这里直接触发并报进度。
+    if (status.kind === 'downloadable') {
+      io.stdout.writeLine('内置模型尚未下载，开始下载（约 2GB，只需一次）…')
+    }
+
+    if (status.kind !== 'ready' && status.kind !== 'downloadable') {
       for (const l of DIAGNOSIS[status.kind]) io.stderr.writeLine(l)
       return 1
     }
@@ -115,9 +123,20 @@ export const ask: Process = {
     // 管道内容放前面当上下文，问题放后面 —— 小模型对结尾的指令更敏感。
     const input = piped ? `${piped}\n\n${question || '请总结上面的内容。'}` : question
 
+    const bar = (p: number) => {
+      const pct = Math.round(p * 100)
+      const filled = Math.round(p * 20)
+      return `[${'#'.repeat(filled)}${'.'.repeat(20 - filled)}] ${pct}%`
+    }
+
     let session
     try {
-      session = await ctx.ai.createSession({ systemPrompt: buildSystemPrompt(ctx) })
+      session = await ctx.ai.createSession({
+        systemPrompt: buildSystemPrompt(ctx),
+        ...(status.kind === 'downloadable'
+          ? { onProgress: (p: number) => io.stdout.writeLine(bar(p)) }
+          : {}),
+      })
       for await (const piece of session.promptStreaming(input, { signal: ctx.signal })) {
         io.stdout.writeText(piece)
       }

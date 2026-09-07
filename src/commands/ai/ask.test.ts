@@ -16,10 +16,11 @@ const ctxWith = (status: AiStatus, chunks: string[] = []) => {
 }
 
 describe('ask —— 可用性判断', () => {
+  // downloadable 不在这里：一次性问答场景下它现在会触发下载并继续作答，
+  // 不再是「不调用模型、直接报错」的分支——见下面「downloadable 时触发下载」用例。
   const unavailableCases: [AiStatus, string][] = [
     [{ kind: 'unsupported' }, 'chrome://flags'],
     [{ kind: 'unavailable' }, '硬件'],
-    [{ kind: 'downloadable' }, '下载'],
     [{ kind: 'downloading' }, '正在下载'],
   ]
 
@@ -96,6 +97,16 @@ describe('ask —— 提问', () => {
     const r = await runCmd(ask, ['ask', 'hi'], ctx)
     expect(r.code).toBe(1)
     expect(r.err).toContain('ask:')
+  })
+
+  it('downloadable 时触发下载并输出进度', async () => {
+    const ctx = {
+      ...makeTestCtx(FILES),
+      ai: fakeAi({ kind: 'downloadable' }, ['答'], { progress: [0.25, 1] }),
+    }
+    const r = await runCmd(ask, ['ask', '你好'], ctx)
+    expect(r.out).toContain('25%')
+    expect(r.out).toContain('100%')
   })
 })
 
