@@ -77,6 +77,14 @@ export function useTerminal() {
   // 用 useMemo 而不是 useState 惰性初始化：后者只在首次渲染求值，永远看不到
   // 语言变化。重建会丢掉 shell 历史与 cwd，这是切语言这个动作可接受的代价，
   // lang 命令已经明确提示临时文件会清空。
+  //
+  // 这里被 memo 的不是派生值，而是整个会话的归属地：VFS（含用户 touch 出来的
+  // 文件）、cwd、env、history 都挂在这个内核上。而 React 只把 useMemo 定义为
+  // 性能提示，缓存允许被丢弃 —— 真被丢一次，会话就静默重置。之所以可以接受：
+  // <Terminal> 在 App 里始终挂载，不在 <Activity>/Offscreen 之下，React 19 的
+  // 常驻树不会丢弃它的 memo。若将来把它放进 Offscreen（或任何会卸载/隐藏它的
+  // 容器），这里必须改成「渲染期按 lang 调整 state」那套官方模式，不能继续靠
+  // useMemo 兜着。
   const kernel = useMemo<Kernel>(() => createKernel({
     vfs: buildInitialVfs(loadContent(lang)),
     host: createUiHost(hooksBox),

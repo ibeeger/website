@@ -20,8 +20,10 @@ function isGroup(v: unknown): v is SkillGroup {
  * 技能表走 VFS 而不是直接 import JSON：文件树是按当前语言构建的，绕过它的
  * 读取路径切了语言也不会变，且内容层就有了两条不同步的来源。
  *
- * 校验到每一项：node chunk 在 React 渲染阶段才求值，那时 proc.run 的 try/catch
- * 早已返回，一份坏掉的 skills.json 会是白屏而不是一行错误提示。
+ * 校验到每一项、在命令层就把坏数据拦下：node chunk 在 React 渲染阶段才求值，
+ * 那时 proc.run 的 try/catch 早已返回，坏数据只会被 OutputBlock 的 ErrorBoundary
+ * 兜成一行标红的降级文本 —— 没有退出码、没有 stderr、grep 不到，用户也不知道
+ * 是文件坏了。前置校验换来的是 stderr + 非零退出码这种能被看见、被管道处理的失败。
  * 读不出或形状不对时返回 null，由调用方决定是报错还是留空。
  */
 export function readSkillGroups(ctx: Ctx): SkillGroup[] | null {

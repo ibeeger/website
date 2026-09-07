@@ -20,9 +20,9 @@ export const lang: Process = {
 
   async run(io, ctx) {
     const wanted = io.argv[1]
+    const current = ctx.host.currentLang()
 
     if (wanted === undefined) {
-      const current = ctx.host.currentLang()
       for (const l of LANGS) {
         const isCurrent = l === current
         io.stdout.writeLine(`  ${isCurrent ? '*' : ' '} ${l}  ${LABEL[l]}`, isCurrent ? ACTIVE : undefined)
@@ -36,8 +36,11 @@ export const lang: Process = {
     }
 
     // 切换会重建整棵文件树 —— 用户 touch 出来的文件会消失。不说就是静默丢数据。
-    // 先写再切：setLang 会触发内核重建，这一行属于切换前那次运行的输出。
-    io.stdout.writeLine(`语言已切换为 ${LABEL[wanted]}。你创建的临时文件已清空。`)
+    // 但选的就是当前语言时什么都不会重建（useLang 的 setState 同值直接 bail out，
+    // 内核那个 useMemo 也就不会重算），这时候还报「已清空」就是在描述没发生的事。
+    io.stdout.writeLine(wanted === current
+      ? `当前语言已经是 ${LABEL[wanted]}。`
+      : `语言已切换为 ${LABEL[wanted]}。你创建的临时文件已清空。`)
     ctx.host.setLang(wanted)
     return 0
   },

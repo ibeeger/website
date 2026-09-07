@@ -111,8 +111,9 @@ describe('skills', () => {
     expect(r.err).toContain('skills.json')
   })
 
-  // node chunk 在 React 渲染阶段才求值，那时 proc.run 的 try/catch 早已返回，
-  // 一份坏掉的 skills.json 就是白屏而不是一行错误提示。
+  // node chunk 在 React 渲染阶段才求值，那时 proc.run 的 try/catch 早已返回：
+  // 不前置校验的话，坏数据只会被 OutputBlock 的 ErrorBoundary 兜成一行标红的
+  // 降级文本，退出码仍是 0、stderr 仍是空的。
   it('skills.json 不是合法 JSON 时报错而不是把坏数据送进渲染', async () => {
     const r = await runCmd(skills, ['skills'], makeTestCtx({ '/home/guest/skills.json': '{ 坏掉了' }))
     expect(r.code).toBe(1)

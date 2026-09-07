@@ -56,6 +56,14 @@ describe('lang', () => {
     expect((await runCmd(lang, ['lang', 'en'], ctx)).code).toBe(0)
   })
 
+  // 选中当前语言时 useLang 的 setState 同值 bail out，内核不重建、文件也还在。
+  // 照样打「已清空」会让用户以为自己 touch 出来的东西没了。
+  it('切换到当前已是的语言时不谎报临时文件被清空', async () => {
+    const { ctx } = ctxWithLang('en')
+    const r = await runCmd(lang, ['lang', 'en'], ctx)
+    expect(r.out).not.toMatch(/清空|临时|cleared/i)
+  })
+
   it('Tab 补全给出语言前缀匹配', () => {
     const { ctx } = ctxWithLang('en')
     expect(lang.complete!(['lang', 'z'], ctx)).toEqual(['zh'])
