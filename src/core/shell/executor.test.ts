@@ -6,12 +6,10 @@ import { createEnv } from './env'
 import { buildInitialVfs } from '../vfs/bootstrap'
 import { createRegistry } from '../registry'
 import { createBrowserAi } from '../ai/languageModel'
-import { chunkToText, node, type Chunk, type Ctx, type Host, type Process, type Writer } from '../process'
+import { chunkToText, node, type Chunk, type Ctx, type Process, type Writer } from '../process'
+import { makeNoopHost } from '../testing/noopHost'
 
-const noopHost: Host = {
-  clear() {}, setTheme() {}, listThemes() { return [] }, currentTheme() { return 'x' },
-  enterChat() {},
-}
+const noopHost = makeNoopHost({ listThemes: () => [], currentTheme: () => 'x' })
 
 /** 收集输出的终端 writer 替身 */
 function collector() {

@@ -1,12 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { createKernel, type Kernel } from './kernel'
 import { buildInitialVfs } from './vfs/bootstrap'
-import { chunkToText, type Chunk, type Host, type Process, type Writer } from './process'
+import { chunkToText, type Chunk, type Process, type Writer } from './process'
+import { makeNoopHost } from './testing/noopHost'
 
-const noopHost: Host = {
-  clear() {}, setTheme() {}, listThemes() { return ['dracula'] }, currentTheme() { return 'dracula' },
-  enterChat() {},
-}
+const noopHost = makeNoopHost({ listThemes: () => ['dracula'] })   // kernel.test.ts 原本返回 ['dracula']
 
 const echoStub: Process = {
   name: 'echo', description: 'echo',

@@ -27,6 +27,10 @@ export interface IO {
   stderr: Writer
 }
 
+/** 界面语言。定义在 core 而不是 i18n，因为 Host 契约要用它，
+ * 而 src/core/ 不该反向依赖 src/i18n/。 */
+export type Lang = 'en' | 'zh'
+
 export interface Host {
   clear(): void
   setTheme(name: string): void
@@ -34,6 +38,9 @@ export interface Host {
   currentTheme(): string
   /** 请求 UI 进入对话模式。命令调用后立即返回，不等待模式结束。 */
   enterChat(opts: { systemPrompt: string }): void
+  /** 切换界面语言。UI 会据此重建 VFS —— 内容是按语言加载的。 */
+  setLang(lang: Lang): void
+  currentLang(): Lang
 }
 
 export interface Env {

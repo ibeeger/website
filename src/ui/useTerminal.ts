@@ -47,6 +47,8 @@ export function useTerminal() {
       listThemes() { return [] },
       currentTheme() { return '' },
       enterChat: (opts: { systemPrompt: string }) => { chat.enter(opts) },
+      setLang() { /* Task 3 接入 */ },
+      currentLang() { return 'en' as const },
     },
   }))
 
@@ -64,6 +66,8 @@ export function useTerminal() {
     listThemes: () => themes,
     currentTheme: () => theme,
     enterChat: (opts) => { chat.enter(opts) },
+    setLang: () => { /* Task 3 接入 */ },
+    currentLang: () => 'en' as const,
   }
 
   // 惰性初始化：内核只在首次渲染时构造一次。

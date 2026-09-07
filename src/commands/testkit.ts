@@ -114,6 +114,8 @@ export const testHost: Host = {
   listThemes() { return ['dracula', 'nord'] },
   currentTheme() { return 'dracula' },
   enterChat() {},
+  setLang() {},
+  currentLang() { return 'en' },
 }
 
 export interface RecordingHost extends Host {

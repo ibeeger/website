@@ -6,12 +6,10 @@ import { createEnv } from './env'
 import { expandWord } from './expand'
 import { buildInitialVfs } from '../vfs/bootstrap'
 import { createRegistry } from '../registry'
-import type { Ctx, Host } from '../process'
+import type { Ctx } from '../process'
+import { makeNoopHost } from '../testing/noopHost'
 
-const noopHost: Host = {
-  clear() {}, setTheme() {}, listThemes() { return [] }, currentTheme() { return 'x' },
-  enterChat() {},
-}
+const noopHost = makeNoopHost({ listThemes: () => [], currentTheme: () => 'x' })
 
 let ctx: Ctx
 

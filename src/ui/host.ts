@@ -1,4 +1,4 @@
-import type { Host } from '../core/process'
+import type { Host, Lang } from '../core/process'
 
 export type UiHooks = {
   clear(): void
@@ -6,6 +6,8 @@ export type UiHooks = {
   listThemes(): string[]
   currentTheme(): string
   enterChat(opts: { systemPrompt: string }): void
+  setLang(lang: Lang): void
+  currentLang(): Lang
 }
 
 /**
@@ -19,5 +21,7 @@ export function createUiHost(box: { current: UiHooks }): Host {
     listThemes() { return box.current.listThemes() },
     currentTheme() { return box.current.currentTheme() },
     enterChat(opts) { box.current.enterChat(opts) },
+    setLang(lang) { box.current.setLang(lang) },
+    currentLang() { return box.current.currentLang() },
   }
 }
