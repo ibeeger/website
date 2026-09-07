@@ -128,6 +128,52 @@ describe('createBrowserAi().createSession()', () => {
     expect(seen).toEqual([0.5])
   })
 
+  it('消费方提前 break 时取消底层流 —— 只放锁不等于关流', async () => {
+    // session 泄漏在这个仓库是 Critical，而 releaseLock() 只是放开这把读锁，
+    // 底层流仍开着、上游仍可能继续产出。中断本轮/退出模式走的正是 break 这条路。
+    let cancelled = false
+    stubGlobal({
+      availability: async () => 'available',
+      // 刻意不 close()：只有流还开着，"break 之后它有没有被关掉"才有意义
+      create: async () => ({
+        promptStreaming: () => new ReadableStream<string>({
+          start(c) { c.enqueue('a'); c.enqueue('b') },
+          cancel() { cancelled = true },
+        }),
+        destroy() {},
+      }),
+    })
+
+    const session = await createBrowserAi().createSession({ systemPrompt: 's' })
+    for await (const piece of session.promptStreaming('hi')) {
+      expect(piece).toBe('a')
+      break
+    }
+
+    expect(cancelled).toBe(true)
+  })
+
+  it('底层 cancel() 抛错时不把一次正常的中断变成异常', async () => {
+    stubGlobal({
+      availability: async () => 'available',
+      create: async () => ({
+        promptStreaming: () => new ReadableStream<string>({
+          start(c) { c.enqueue('a') },
+          cancel() { throw new Error('cancel 炸了') },
+        }),
+        destroy() {},
+      }),
+    })
+
+    const session = await createBrowserAi().createSession({ systemPrompt: 's' })
+    const readOne = async () => {
+      for await (const piece of session.promptStreaming('hi')) { void piece; break }
+    }
+
+    // 清理路径上的失败不该冒泡：中断是用户主动做的，不该在屏幕上变成一条红色报错。
+    await expect(readOne()).resolves.toBeUndefined()
+  })
+
   it('不传 onProgress 时不注册 monitor —— 不为没人听的事件付出代价', async () => {
     let sawMonitor = false
     stubGlobal({

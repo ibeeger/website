@@ -10,6 +10,10 @@ export interface FakeAi extends AiProvider {
   destroyed: number            // session 被释放了几次
   prompts: string[]            // 每次提问的完整 input
   systemPrompts: string[]      // 每次会话的 system prompt
+  // 每次 createSession() 收到的 signal。createSession 的 signal 是「创建期间」
+  // 的中断入口（模型未下载时 create() 里就在下 2GB），与 promptStreaming 的
+  // signal 是两个不同的窗口，必须能分别断言。
+  signals: (AbortSignal | undefined)[]
   // 每次 destroy() 记一笔"第几个被创建的 session"（从 1 开始）。只看 destroyed
   // 计数分不清"同一个 session 被 destroy 两次"和"两个不同 session 各 destroy
   // 一次"——这两种情况计数完全一样，但前者是泄漏 bug，必须能分辨。
@@ -76,6 +80,7 @@ export function fakeAi(
     destroyed: 0,
     prompts: [],
     systemPrompts: [],
+    signals: [],
     destroyedSessionIds: [],
 
     resolveSession(index) {
@@ -86,10 +91,11 @@ export function fakeAi(
 
     async status() { return status },
 
-    async createSession({ systemPrompt, onProgress }) {
+    async createSession({ systemPrompt, signal, onProgress }) {
       fake.created++
       const sessionId = fake.created
       fake.systemPrompts.push(systemPrompt)
+      fake.signals.push(signal)
       // 真实实现里进度事件发生在 create() 期间，这里保持同样的时序
       if (onProgress) for (const p of opts.progress ?? []) onProgress(p)
       if (opts.rejectSession) throw new Error('会话创建失败')

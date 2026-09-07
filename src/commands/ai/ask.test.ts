@@ -99,6 +99,29 @@ describe('ask —— 提问', () => {
     expect(r.err).toContain('ask:')
   })
 
+  it('把 ctx.signal 交给 createSession —— 下载期间的 Ctrl+C 全靠它', async () => {
+    // createSession 才是那 2GB 下载真正发生的地方，可能一挂十几分钟。只把
+    // signal 传给 promptStreaming 的话，下载期间按 Ctrl+C 不会取消 create()，
+    // run() 一直挂在那个 await 上、UI 的 abortRef 不释放，终端整个冻住。
+    const ctx = { ...makeTestCtx(FILES), ai: fakeAi({ kind: 'downloadable' }, ['答']) }
+    await runCmd(ask, ['ask', '你好'], ctx)
+    expect(ctx.ai.signals[0]).toBe(ctx.signal)
+  })
+
+  it('下载进度按档去重 —— 密集的 downloadprogress 不会往 scrollback 灌几百行', async () => {
+    // Writer 是纯追加契约，画不出原地刷新的一行；Chrome 在 2GB 下载期间会派发
+    // 几百次事件。这里用 300 次铺满 0→1 的整个区间，模拟真实的派发密度。
+    const progress = Array.from({ length: 300 }, (_, i) => i / 299)
+    const ctx = { ...makeTestCtx(FILES), ai: fakeAi({ kind: 'downloadable' }, ['答'], { progress }) }
+    const r = await runCmd(ask, ['ask', '你好'], ctx)
+
+    const bars = r.out.split('\n').filter(l => l.startsWith('['))
+    expect(bars.length).toBeLessThanOrEqual(21)
+    // 首尾两档都必须留下：只报中间几档，等于不告诉用户什么时候开始、什么时候完成。
+    expect(bars[0]).toContain('] 0%')
+    expect(bars[bars.length - 1]).toContain('] 100%')
+  })
+
   it('downloadable 时触发下载并输出进度', async () => {
     const ctx = {
       ...makeTestCtx(FILES),
@@ -157,6 +180,23 @@ describe('ask —— 进入对话模式', () => {
     const ctx = { ...makeTestCtx(FILES), host, ai: fakeAi({ kind: 'ready' }) }
     await runCmd(ask, ['ask'], ctx)
     expect(host.chatCalls[0]!.systemPrompt).toContain('全栈工程师，专注前端架构')
+  })
+
+  it('进入模式前打印引导 —— 否则屏幕上唯一的变化只是提示符，没人告诉用户怎么出去', async () => {
+    const host = recordingHost()
+    const ctx = { ...makeTestCtx(FILES), host, ai: fakeAi({ kind: 'ready' }) }
+    const r = await runCmd(ask, ['ask'], ctx)
+    expect(r.out).toContain('对话模式')
+    // 三种退出方式都要写到：交互契约表里它们都成立，漏一种就是让用户少一条出路。
+    expect(r.out).toContain('exit')
+    expect(r.out).toContain('Ctrl+D')
+    expect(r.out).toContain('Ctrl+C')
+  })
+
+  it('usage 把三种退出方式写全 —— 文案不得描述不存在的行为，也不该漏掉存在的', () => {
+    expect(ask.usage).toContain('exit')
+    expect(ask.usage).toContain('Ctrl+D')
+    expect(ask.usage).toContain('Ctrl+C')
   })
 
   it('模型不可用时不进入模式 —— 不能让用户进去才发现跑不了', async () => {

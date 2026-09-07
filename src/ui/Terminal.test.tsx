@@ -298,6 +298,60 @@ describe('Terminal', () => {
     expect((input as HTMLInputElement).value).toBe('问题二')
   })
 
+  it('对话模式下 Ctrl+R 不开反向搜索 —— 它是继 Tab、↑/↓ 之后的第三个历史入口', async () => {
+    const { container } = render(<Terminal />)
+    const input = screen.getByRole('textbox')
+    // 先在 shell 里留一条历史：它正是不该被反向搜索翻进对话里的东西。
+    fireEvent.change(input, { target: { value: 'pwd' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() => expect(screen.getByText('/home/guest')).toBeTruthy())
+
+    fireEvent.change(input, { target: { value: 'ask' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await screen.findByText(/ask> /, { trim: false })
+
+    fireEvent.keyDown(input, { key: 'r', ctrlKey: true })
+
+    expect(screen.queryByText(/reverse-i-search/)).toBeNull()
+    // ask> 提示符没有被搜索框顶掉，人还在模式里
+    expect(container.querySelector('.promptline .prompt')?.textContent).toContain('ask> ')
+  })
+
+  it('进入对话模式后输入框的可访问名随之改变 —— 提示符不在 live region 里，读屏只能从这里知道换了模式', async () => {
+    render(<Terminal />)
+    const input = screen.getByRole('textbox')
+    expect(input.getAttribute('aria-label')).toBe('终端命令输入')
+
+    fireEvent.change(input, { target: { value: 'ask' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await screen.findByText(/ask> /, { trim: false })
+
+    expect(input.getAttribute('aria-label')).toContain('对话模式')
+    // 名字里带上退出方式：模式切换本身播报不出来，这是唯一能交代出口的地方。
+    expect(input.getAttribute('aria-label')).toContain('Ctrl+D')
+  })
+
+  it('对话模式下生成中按 Ctrl+D 也退出模式 —— EOF 是「我要走了」，不是「停这一轮」', async () => {
+    const { container } = render(<Terminal />)
+    const input = screen.getByRole('textbox')
+    fireEvent.change(input, { target: { value: 'ask' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await screen.findByText(/ask> /, { trim: false })
+
+    // 提交之后不 await：两次 fireEvent 之间没有 microtask 检查点，
+    // 所以 Ctrl+D 稳定地落在这一轮还在生成的窗口里，不靠时序赌运气。
+    fireEvent.change(input, { target: { value: '你好' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(container.querySelector('.chat-thinking')).toBeTruthy()
+
+    fireEvent.keyDown(input, { key: 'd', ctrlKey: true })
+
+    // 接到 interrupt() 的话这里会停在 ask>：生成中它只中断本轮，人留在模式里。
+    await waitFor(() => expect(
+      container.querySelector('.promptline .prompt')?.textContent,
+    ).toContain('guest@terminal'))
+  })
+
   it('对话模式下输入为空时 Ctrl+D 退出模式，回到 shell 提示符', async () => {
     const { container } = render(<Terminal />)
     const input = screen.getByRole('textbox')

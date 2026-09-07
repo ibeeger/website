@@ -157,6 +157,10 @@ export function Terminal() {
         displayOverride={search.active ? search.match : undefined}
         displayCaret={search.active ? Math.max(0, search.match.indexOf(search.query)) : undefined}
         inputRef={inputRef}
+        // 提示符不在 aria-live 区域内，模式切换对读屏是完全静默的；这个 label
+        // 是输入框自身的可访问名，随模式改写后，切换才在无障碍树里留下痕迹，
+        // 也顺带把退出方式说给听不到提示符变化的用户。
+        ariaLabel={term.chatActive ? '对话模式输入，exit 或 Ctrl+D 退出' : '终端命令输入'}
         // 不传 disabled：useTerminal.submit 里的重入守卫已经是唯一必须成立的
         // 不变量，UI 层的 disabled 只会是重复的第二道防线。真做了反而更糟——
         // 浏览器会在 input 变 disabled 的瞬间把焦点踢到 <body>，页面上没有任何
@@ -183,10 +187,18 @@ export function Terminal() {
         onHistoryPrev={doHistoryPrev}
         onHistoryNext={doHistoryNext}
         onComplete={doComplete}
-        onReverseSearch={() => (search.active ? search.next() : search.start())}
+        // Ctrl+R 是继 Tab 和 ↑/↓ 之后的第三个历史入口，模式内同样要挡住 ——
+        // 否则反向搜索框会顶掉 ask> 提示符、把一条 shell 命令填进输入框，
+        // 回车后它就作为一句话发给了模型。与 doComplete 里那道守卫同构。
+        onReverseSearch={() => {
+          if (term.chatActive) return
+          if (search.active) { search.next(); return }
+          search.start()
+        }}
         onInterrupt={doInterrupt}
         onClearScreen={term.clearScreen}
-        onEof={() => { if (term.chatActive) term.interrupt() }}
+        // 走 leaveChat 而不是 interrupt：EOF 无条件退出，不按 phase 分流。
+        onEof={term.leaveChat}
       />}
       {booted && <MobileKeyBar onKey={handleMobileKey} />}
       <div ref={bottomRef} />

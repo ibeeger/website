@@ -19,6 +19,12 @@ export type PromptLineProps = {
   displayCaret?: number
   /** 外部想拿到真 input 的引用时用（比如把整个终端容器都设为点击聚焦）。 */
   inputRef?: RefObject<HTMLInputElement | null>
+  /**
+   * 输入框的可访问名。默认是 shell 下的说法；调用方在切换交互模式时应当改写它
+   * —— 提示符不在 aria-live 区域里，模式变化不会被播报，这个名字是读屏用户
+   * 唯一能感知到「现在在哪个模式」的地方。
+   */
+  ariaLabel?: string
 }
 
 export function PromptLine(props: PromptLineProps) {
@@ -132,7 +138,7 @@ export function PromptLine(props: PromptLineProps) {
           autoCorrect="off"
           autoComplete="off"
           spellCheck={false}
-          aria-label="终端命令输入"
+          aria-label={props.ariaLabel ?? '终端命令输入'}
         />
       </span>
     </div>

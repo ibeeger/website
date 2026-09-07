@@ -58,12 +58,18 @@ vi.mock('../core/kernel', async (importOriginal) => {
 // 取 provider 会拿到另一个（不可用的）实例」这两种场景，用完在 afterEach 复位。
 // 开关必须在 renderHook 之前设置：provider 是 useTerminal 挂载时一次性取定的
 // （useState 惰性初始化），挂载之后再改，这次挂载读不到，用例会静默失效。
-const aiCtl = vi.hoisted(() => ({ throwOnPrompt: false, onlyFirstReady: false, calls: 0 }))
+const aiCtl = vi.hoisted(() => ({
+  throwOnPrompt: false, onlyFirstReady: false, calls: 0,
+  // 那个「就绪」的 fake 实例本身，用来断言 session 真的被释放了。它是模块级
+  // 单例、被所有用例共用，destroyed 会跨用例累加，所以断言必须看增量。
+  ready: null as import('../commands/testkit').FakeAi | null,
+}))
 
 vi.mock('../core/ai/languageModel', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../core/ai/languageModel')>()
   const { fakeAi } = await import('../commands/testkit')
   const ready = fakeAi({ kind: 'ready' }, ['答', '案'])
+  aiCtl.ready = ready
   const failing = fakeAi({ kind: 'ready' }, [], { throwOnPrompt: true })
   return {
     ...actual,
@@ -236,6 +242,23 @@ describe('useTerminal 对话模式', () => {
       expect(last.interrupted).toBe(true)
     })
     expect(result.current.chatActive).toBe(true)
+  })
+
+  it('生成中 leaveChat 无条件退出模式并释放 session —— Ctrl+D 不走 Ctrl+C 那条按 phase 的分流', async () => {
+    const { result } = renderHook(() => useTerminal())
+    await enterChat(result)
+    const destroyedBefore = aiCtl.ready!.destroyed
+
+    // 两次 act 之间不会冲刷 microtask，所以这一刻这一轮确实还没生成完 ——
+    // 正是 interrupt() 会选择「只停这一轮」的那个窗口。
+    act(() => { result.current.submit('你好') })
+    expect(result.current.blocks[result.current.blocks.length - 1]!.phase).toBe('thinking')
+
+    act(() => { result.current.leaveChat() })
+
+    await waitFor(() => expect(result.current.chatActive).toBe(false))
+    // 退出必定释放 session：模型常驻显存，不放就是泄漏。
+    expect(aiCtl.ready!.destroyed).toBe(destroyedBefore + 1)
   })
 
   it('模式内的输入不进 shell 历史', async () => {

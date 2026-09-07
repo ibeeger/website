@@ -77,6 +77,14 @@ async function* iterate(stream: ReadableStream<string>): AsyncIterable<string> {
       if (value !== undefined) yield value
     }
   } finally {
+    // 消费方提前 break（中断本轮、退出模式）时，光 releaseLock() 只是放开这把锁，
+    // 底层流仍然开着、上游仍可能继续产出——session 泄漏在本仓库是 Critical，
+    // 这是同一类资源上唯一没关严的口子。cancel() 才是通知上游停止的那一步。
+    // 今天「break 时 signal 一定已 abort」只是消费方 useChat 的实现细节，
+    // 适配层不该把自己的正确性押在调用方的写法上。
+    // cancel() 自身可能 reject（底层实现抛错、流已 errored）；这里是清理路径，
+    // 让它把一次正常的中断变成异常没有任何好处，吞掉即可。
+    await reader.cancel().catch(() => {})
     reader.releaseLock()
   }
 }

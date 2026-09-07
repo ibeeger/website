@@ -125,6 +125,11 @@ export function useTerminal() {
     })
   }, [chat.active, chat.turns])
 
+  // submit / interrupt / leaveChat 三个 useCallback 都依赖 chat，而 chat 是
+  // useChat 每次渲染新建的对象字面量 —— 于是它们每次渲染必然重建。这不是遗漏，
+  // 恰恰是它们正确的原因：靠这次重建才能闭包到最新的 chat。若日后把 chat 包进
+  // useMemo 来「消掉多余的重建」，这几个回调就会捕获过期的 chat，模式分流会
+  // 静默失效（提交被发给一个早已退出的会话，不报任何错）。
   const submit = useCallback((line: string) => {
     // 对话模式的分流刻意排在重入守卫之前，且整条分支不碰 abortRef：模式的生命
     // 期比命令长（ask 早就返回 0 了模式还开着），把它塞进那个单槽会让「有没有
@@ -187,6 +192,14 @@ export function useTerminal() {
     abortRef.current?.abort()
   }, [chat])
 
+  // Ctrl+D 专用入口。它和 Ctrl+C 的语义不同：EOF 是「我要走了」，无条件退出，
+  // 真实 shell 也是这样；Ctrl+C 才有「生成中只停这一轮」的两级语义。两者共用
+  // interrupt 那条按 phase 的分流，会让生成中按 Ctrl+D 只中断本轮、人还留在
+  // 模式里 —— 与设计文档的契约表和 ask 打印的退出说明都对不上，用户得按两次。
+  const leaveChat = useCallback(() => {
+    if (chat.active) chat.leave()
+  }, [chat])
+
   const complete = useCallback((line: string) => kernel.complete(line), [kernel])
 
   return {
@@ -194,7 +207,7 @@ export function useTerminal() {
     prompt: chat.active ? CHAT_PROMPT : prompt,
     chatActive: chat.active,
     chatInputs: chat.inputs,
-    submit, interrupt, complete,
+    submit, interrupt, leaveChat, complete,
     // 这是同一个数组对象、内核原地 push（从不重新赋值），且 push 发生在 run()
     // 的首个 await 之前：useHistory/useReverseSearch 靠这两点才能不经重渲染
     // 就看见新提交的命令。换成 `session.history = [...]` 会悄悄破坏两者。

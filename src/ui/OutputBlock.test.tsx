@@ -38,7 +38,10 @@ describe('OutputBlock', () => {
       exitCode: null, kind: 'chat', phase: 'thinking',
     }
     const { container } = render(<OutputBlock block={block} />)
-    expect(container.querySelector('[aria-busy="true"]')).toBeTruthy()
+    // 直接查指示器自己的 class，而不是 [aria-busy]：streaming 中的 chat block
+    // 整块也带 aria-busy（抑制读屏逐分片重播），拿那个属性当指示器的替身会
+    // 把两件不相干的事混在一起，两边都测不准。
+    expect(container.querySelector('.chat-thinking')).toBeTruthy()
   })
 
   it('chat block 进入 streaming 后不再渲染思考指示器', () => {
@@ -47,7 +50,27 @@ describe('OutputBlock', () => {
       exitCode: null, kind: 'chat', phase: 'streaming',
     }
     const { container } = render(<OutputBlock block={block} />)
-    expect(container.querySelector('[aria-busy="true"]')).toBeNull()
+    expect(container.querySelector('.chat-thinking')).toBeNull()
+  })
+
+  it('streaming 中的 chat block 整块标记 aria-busy —— 否则读屏每来一个分片就把整段回答重播一遍', () => {
+    // 投影把一整轮压成一个 chunk，分片是"整体替换同一个文本节点"；外层
+    // live region 的 aria-relevant 默认含 text，会把这种替换当成新增。
+    const block: Block = {
+      id: 'b1', prompt: 'ask> ', input: '你好', chunks: [text('回答')],
+      exitCode: null, kind: 'chat', phase: 'streaming',
+    }
+    const { container } = render(<OutputBlock block={block} />)
+    expect(container.querySelector('.block-chat')?.getAttribute('aria-busy')).toBe('true')
+  })
+
+  it('回到 idle 后摘掉 aria-busy —— 一直挂着的话这一轮的回答永远播报不出来', () => {
+    const block: Block = {
+      id: 'b1', prompt: 'ask> ', input: '你好', chunks: [text('回答')],
+      exitCode: null, kind: 'chat', phase: 'idle',
+    }
+    const { container } = render(<OutputBlock block={block} />)
+    expect(container.querySelector('.block-chat')?.getAttribute('aria-busy')).toBeNull()
   })
 
   it('中断的 chat block 显示已中断，且保留已生成的内容', () => {

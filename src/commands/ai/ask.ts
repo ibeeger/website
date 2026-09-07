@@ -81,7 +81,7 @@ function buildSystemPrompt(ctx: Ctx): string {
 export const ask: Process = {
   name: 'ask',
   description: '和我聊聊（浏览器本地模型）',
-  usage: 'ask [--status] [问题...]\n  ask            进入对话模式，exit 或 Ctrl+D 退出\n  ask <问题>      一次性问答',
+  usage: 'ask [--status] [问题...]\n  ask            进入对话模式，exit、Ctrl+D 或空闲时 Ctrl+C 退出\n  ask <问题>      一次性问答',
 
   async run(io, ctx) {
     const args = io.argv.slice(1)
@@ -105,6 +105,12 @@ export const ask: Process = {
         for (const l of DIAGNOSIS[status.kind]) io.stderr.writeLine(l)
         return 1
       }
+      // 进入模式唯一的视觉变化是提示符换成 ask>，屏幕上没有任何地方交代
+      // 怎么出去；提示符又在 aria-live 区域之外，读屏用户连这点变化都收不到。
+      // 所以这行引导既是给视觉用户的出口说明，也是模式切换在无障碍树里
+      // 唯一一处会被播报的痕迹。退出方式与 usage 保持一致。
+      io.stdout.writeLine('进入对话模式，接下来的输入直接发给模型，多轮共享上下文。')
+      io.stdout.writeLine('输入 exit、按 Ctrl+D，或在空闲时按 Ctrl+C 退出。')
       ctx.host.enterChat({ systemPrompt: buildSystemPrompt(ctx) })
       return 0
     }
@@ -123,19 +129,35 @@ export const ask: Process = {
     // 管道内容放前面当上下文，问题放后面 —— 小模型对结尾的指令更敏感。
     const input = piped ? `${piped}\n\n${question || '请总结上面的内容。'}` : question
 
-    const bar = (p: number) => {
-      const pct = Math.round(p * 100)
-      const filled = Math.round(p * 20)
+    const bar = (pct: number) => {
+      const filled = Math.round(pct / 5)
       return `[${'#'.repeat(filled)}${'.'.repeat(20 - filled)}] ${pct}%`
+    }
+
+    // Writer 是纯追加契约，画不出「原地刷新的一行进度条」。而 Chrome 在这 2GB
+    // 下载期间会密集派发 downloadprogress，每个事件写一行会往 scrollback 灌
+    // 几百行，把用户此前的输出全冲走。按 5% 一档去重，整个下载最多留下
+    // 0/5/…/100 这一串，首尾两端都保证出现。
+    const PROGRESS_STEP = 5
+    let lastStep = -1
+    const reportProgress = (p: number) => {
+      const pct = Math.min(100, Math.max(0, Math.round(p * 100)))
+      const step = Math.floor(pct / PROGRESS_STEP)
+      if (step === lastStep) return
+      lastStep = step
+      io.stdout.writeLine(bar(pct))
     }
 
     let session
     try {
       session = await ctx.ai.createSession({
         systemPrompt: buildSystemPrompt(ctx),
-        ...(status.kind === 'downloadable'
-          ? { onProgress: (p: number) => io.stdout.writeLine(bar(p)) }
-          : {}),
+        // 模型未下载时这一步就是那 2GB 下载本身，可能持续十几分钟。不把 signal
+        // 交进去的话，Ctrl+C 只会让 ctx.signal 变 aborted 而下载照跑，run() 一直
+        // 挂在这个 await 上；UI 那边 abortRef 未释放，之后的输入会被重入守卫
+        // 静默吞掉 —— 终端表现为完全冻住，只能刷新页面。
+        signal: ctx.signal,
+        ...(status.kind === 'downloadable' ? { onProgress: reportProgress } : {}),
       })
       for await (const piece of session.promptStreaming(input, { signal: ctx.signal })) {
         io.stdout.writeText(piece)
