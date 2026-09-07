@@ -18,30 +18,51 @@ const ctxWith = (status: AiStatus, chunks: string[] = []) => {
   return { ctx: { ...ctx, ai }, ai }
 }
 
+// 显式钉住语言。testHost.currentLang() 本来就返回站点默认语言 'en'，所以
+// 「en 分支」用 ctxWith 也走得通 —— 但那样断言的期望值恰好等于回落值，
+// 被测的查表逻辑整个删掉也不会红。要证明「文案跟着语言走」，两种语言都得显式给。
+const langCtx = (l: Lang, status: AiStatus, chunks: string[] = []) => ({
+  ...makeTestCtx(FILES),
+  host: { ...testHost, currentLang: () => l },
+  ai: fakeAi(status, chunks),
+})
+
 describe('ask —— 可用性判断', () => {
   // downloadable 不在这里：一次性问答场景下它现在会触发下载并继续作答，
   // 不再是「不调用模型、直接报错」的分支——见下面「downloadable 时触发下载」用例。
-  const unavailableCases: [AiStatus, string][] = [
-    [{ kind: 'unsupported' }, 'chrome://flags'],
-    [{ kind: 'unavailable' }, 'VRAM'],
-    [{ kind: 'downloading' }, 'still downloading'],
+  //
+  // 表里带 lang：文案拆成两份之后，只钉英文那份等于把中文那份的**内容**整个
+  // 放空 —— 剩下的「非空 / 有汉字 / 与 en 不同」全是形状条件，中文四段换成
+  // 「占位。」也照样绿。每种语言各自的关键词都得有人钉。
+  const unavailableCases: [Lang, AiStatus, string][] = [
+    ['en', { kind: 'unsupported' }, 'chrome://flags/#prompt-api-for-gemini-nano'],
+    ['en', { kind: 'unavailable' }, 'VRAM'],
+    ['en', { kind: 'downloading' }, 'still downloading'],
+    ['zh', { kind: 'unsupported' }, 'chrome://flags/#prompt-api-for-gemini-nano'],
+    ['zh', { kind: 'unavailable' }, '硬件'],
+    ['zh', { kind: 'downloading' }, '正在下载'],
   ]
 
-  for (const [status, expected] of unavailableCases) {
-    it(`${status.kind} 时不调用模型，给出针对性说明，退出码 1`, async () => {
-      const { ctx, ai } = ctxWith(status)
+  for (const [l, status, expected] of unavailableCases) {
+    it(`${l} 下 ${status.kind} 时不调用模型，给出针对性说明，退出码 1`, async () => {
+      const ctx = langCtx(l, status)
       const r = await runCmd(ask, ['ask', '你好'], ctx)
       expect(r.code).toBe(1)
       expect(r.err).toContain(expected)
-      expect(ai.created).toBe(0)
+      expect(ctx.ai.created).toBe(0)
     })
   }
 
+  // 隐私承诺是这段文案里最不能被静默删掉的一句，两种语言都得钉住：
+  // 只钉英文的话，中文版把「不会发到任何服务器」删了，整套用例不会有任何反应。
   it('unsupported 的文案要说明模型跑在本地、不上传 —— 这是访客最先关心的', async () => {
-    const { ctx } = ctxWith({ kind: 'unsupported' })
-    const r = await runCmd(ask, ['ask', '你好'], ctx)
-    expect(r.err).toContain('runs on your own')
-    expect(r.err).toContain('nothing is sent to a server')
+    const en = await runCmd(ask, ['ask', '你好'], langCtx('en', { kind: 'unsupported' }))
+    expect(en.err).toContain('runs on your own')
+    expect(en.err).toContain('nothing is sent to a server')
+
+    const zh = await runCmd(ask, ['ask', '你好'], langCtx('zh', { kind: 'unsupported' }))
+    expect(zh.err).toContain('跑在你本地')
+    expect(zh.err).toContain('问题不会发到任何服务器')
   })
 })
 
@@ -219,6 +240,11 @@ describe('ask —— 进入对话模式', () => {
     expect(host.chatCalls).toHaveLength(0)
     expect(r.code).toBe(1)
     expect(r.err).toContain('ask <question>')
+
+    // 中文那份也要钉：这句是在告诉用户「怎么把它变成可用」，两种语言下
+    // 都不能被静默删成一句「还没下载」。
+    const zh = await runCmd(ask, ['ask'], langCtx('zh', { kind: 'downloadable' }))
+    expect(zh.err).toContain('ask <问题>')
   })
 
   it('带问题时是一次性问答，不进入模式', async () => {
@@ -236,15 +262,6 @@ describe('ask —— 进入对话模式', () => {
   })
 })
 
-// testHost.currentLang() 返回 'en'，也就是站点默认语言 —— 上面那些用例走的都是
-// 英文路径。这里显式钉住两种语言，因为「文案跟着语言走」这件事只有在两种语言
-// 给出不同结果时才算被证明。
-const langCtx = (l: Lang, status: AiStatus, chunks: string[] = []) => ({
-  ...makeTestCtx(FILES),
-  host: { ...testHost, currentLang: () => l },
-  ai: fakeAi(status, chunks),
-})
-
 describe('ask 的文案跟随语言', () => {
   it('英文下 unsupported 文案是英文', async () => {
     const r = await runCmd(ask, ['ask', 'hi'], langCtx('en', { kind: 'unsupported' }))
@@ -259,7 +276,9 @@ describe('ask 的文案跟随语言', () => {
     expect(r.err).toMatch(/[一-龥]/)
   })
 
-  it('四种不可用状态在两种语言下都有文案，且两种语言互不相同', async () => {
+  // 只有三种：downloadable 在一次性问答下会触发下载而不是报错，它的早退文案
+  // 由下面那条单独覆盖。
+  it('三种不可用状态在两种语言下都有文案，且两种语言互不相同', async () => {
     for (const kind of ['unsupported', 'unavailable', 'downloading'] as const) {
       const en = await runCmd(ask, ['ask', 'hi'], langCtx('en', { kind }))
       const zh = await runCmd(ask, ['ask', 'hi'], langCtx('zh', { kind }))
@@ -310,8 +329,11 @@ describe('ask 的文案跟随语言', () => {
   it('触发下载的提示跟着语言走', async () => {
     const en = await runCmd(ask, ['ask', 'hi'], langCtx('en', { kind: 'downloadable' }, ['ok']))
     const zh = await runCmd(ask, ['ask', 'hi'], langCtx('zh', { kind: 'downloadable' }, ['ok']))
+    // 形状（有没有汉字）和内容（那句话还在不在）都要钉：只判形状的话，
+    // 中文那句换成任意一句中文都算过。
+    expect(en.out).toContain('starting the download')
     expect(en.out).not.toMatch(/[一-龥]/)
-    expect(zh.out).toMatch(/[一-龥]/)
+    expect(zh.out).toContain('开始下载')
   })
 
   it('system prompt 要求模型用英文回答', async () => {
@@ -335,6 +357,18 @@ describe('ask 的文案跟随语言', () => {
     }
     expect(await enter('zh')).toMatch(/中文/)
     expect(await enter('en')).toMatch(/English/i)
+  })
+
+  // 只有管道输入、没带问题时，命令替用户补的那句问题进的是发给模型的 input，
+  // 不是屏幕输出 —— 它照样得跟着语言走，否则英文站点上是拿中文指令去问模型。
+  it('只有管道输入时替用户补的那句问题跟着语言走', async () => {
+    const en = langCtx('en', { kind: 'ready' }, ['ok'])
+    await runCmd(ask, ['ask'], en, '一段文本\n')
+    expect(en.ai.prompts[0]).toContain('Summarize the text above.')
+
+    const zh = langCtx('zh', { kind: 'ready' }, ['ok'])
+    await runCmd(ask, ['ask'], zh, '一段文本\n')
+    expect(zh.ai.prompts[0]).toContain('请总结上面的内容。')
   })
 
   it('两种语言的 system prompt 都带上同一份简历资料 —— 翻译的是人设不是内容', async () => {

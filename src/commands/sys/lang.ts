@@ -36,8 +36,8 @@ export const lang: Process = {
     }
 
     // 切换重建的是整个内核（useTerminal 里那个按 lang memo 的 createKernel），
-    // 而 VFS、env、cwd、history 全挂在它上面 —— 丢的不只是 touch 出来的文件。
-    // 不说就是静默丢数据，只说文件则是说漏了一半。
+    // 而 VFS、env、history 全挂在它上面，cwd 也跟着回到 $HOME —— 丢的不只是
+    // touch 出来的文件。不说就是静默丢数据，只说文件则是说漏了一半。
     // 但选的就是当前语言时什么都不会重建（useLang 的 setState 同值直接 bail out，
     // 内核那个 useMemo 也就不会重算），这时候还报「已清空」就是在描述没发生的事。
     io.stdout.writeLine(wanted === current

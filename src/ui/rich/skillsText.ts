@@ -4,8 +4,10 @@ export const MAX_LEVEL = 5
 
 /**
  * skills.json 是站点作者手改的内容文件，"level": 6 这样的笔误完全可预见。
- * 坏数据的第一道拦截在命令层的 readSkillGroups（skills.tsx）：形状不对就
- * stderr + 退出码 1，是一次看得见、管道也接得住的失败。
+ * 形状层面的坏数据由 readSkillGroups 判定（它自己只返回 null，报错是调用方
+ * 各自决定的）：skills 命令据此打 stderr + 退出码 1，是一次看得见、管道也
+ * 接得住的失败；resume 走的是 `?? []`，宽容降级成空技能段，退出码仍是 0；
+ * renderStaticResume 是构建期纯函数，连 ErrorBoundary 都没有。
  *
  * 但越界的 level 仍是个合法 number，过得了那道形状校验，剩下的只有取值问题。
  * 而 node chunk 在 React 渲染阶段才求值，proc.run 的 try/catch 早已返回，这里

@@ -89,8 +89,6 @@ interface AskText {
   chatEnter: string[]
   /** system prompt 里的人设与语言要求，简历资料之前的那几行。 */
   persona: string[]
-  materialOpen: string
-  materialClose: string
 }
 
 export const ASK_TEXT: Record<Lang, AskText> = {
@@ -111,8 +109,6 @@ export const ASK_TEXT: Record<Lang, AskText> = {
       '',
       'Answer in English.',
     ],
-    materialOpen: '--- my material ---',
-    materialClose: '--- end of material ---',
   },
   zh: {
     statusLabel: '模型状态: ',
@@ -130,8 +126,6 @@ export const ASK_TEXT: Record<Lang, AskText> = {
       '',
       '用中文回答。',
     ],
-    materialOpen: '--- 我的资料 ---',
-    materialClose: '--- 资料结束 ---',
   },
 }
 
@@ -155,14 +149,14 @@ export const LANG_TEXT: Record<Lang, LangText> = {
     unknown: (value, available) => `lang: ${value}: unknown language. Available: ${available}`,
     already: label => `The interface is already in ${label}.`,
     switched: label => `Interface language switched to ${label}. The session is rebuilt: `
-      + `the temporary files you created, your shell history, the working directory `
-      + `and the variables you exported are all gone.`,
+      + `the temporary files you created, your shell history and the variables you `
+      + `exported are gone, and the working directory is reset to ~.`,
   },
   zh: {
     unknown: (value, available) => `lang: ${value}: 未知语言。可用：${available}`,
     already: label => `当前语言已经是 ${label}。`,
     switched: label => `语言已切换为 ${label}。会话会重建：`
-      + `你创建的临时文件、shell 历史、当前目录，以及 export 出来的环境变量都会清空。`,
+      + `你创建的临时文件、shell 历史，以及 export 出来的环境变量都会清空，当前目录回到 ~。`,
   },
 }
 

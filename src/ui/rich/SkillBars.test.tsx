@@ -6,7 +6,8 @@ import { SkillBars, skillsToText, clampLevel, type SkillGroup } from './SkillBar
 
 // 站点作者手改 skills.json 时打错等级（超出 1-5 或负数）是完全可预见的输入。
 // 越界的 level 仍是合法 number，过得了 readSkillGroups 那道形状校验——形状不对
-// 才有 stderr + 退出码 1。而 node chunk 是在 React 渲染阶段才求值的，proc.run 的
+// 时也只有 skills 命令会给 stderr + 退出码 1，resume 那边是 `?? []` 宽容降级。
+// 而 node chunk 是在 React 渲染阶段才求值的，proc.run 的
 // try/catch 早就返回了，这里真抛出去只会被 OutputBlock 的 ErrorBoundary 兜成一行
 // 标红的降级文本，没有退出码也没有 stderr。所以这些输入必须被夹住，
 // 而不是指望异常把问题喊出来。

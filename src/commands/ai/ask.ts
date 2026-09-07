@@ -4,6 +4,9 @@ import type { Ctx, Lang, Process } from '../../core/process'
 
 const PERSONA_FILES = ['about.md', 'skills.json']
 
+const MATERIAL_OPEN = '--- my material ---'
+const MATERIAL_CLOSE = '--- end of material ---'
+
 /** 只有管道输入、没带问题时替用户补的那句 —— 它进的是发给模型的提问本身。 */
 const SUMMARIZE: Record<Lang, string> = {
   en: 'Summarize the text above.',
@@ -35,13 +38,14 @@ function buildSystemPrompt(ctx: Ctx, lang: Lang): string {
   }
 
   // 资料本身不翻译：VFS 里的内容已经是按当前语言构建的那一棵树。
-  const t = ASK_TEXT[lang]
+  // 分隔符也不翻译：它只是给模型划范围用的标记，用户永远看不到这两行，
+  // 翻它没有可观察收益，却要多两个接口字段和两条谁也没覆盖的分支。
   return [
-    ...t.persona,
+    ...ASK_TEXT[lang].persona,
     '',
-    t.materialOpen,
+    MATERIAL_OPEN,
     ...parts,
-    t.materialClose,
+    MATERIAL_CLOSE,
   ].join('\n')
 }
 
