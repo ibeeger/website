@@ -192,6 +192,22 @@ describe('help 按语言显示', () => {
     expect(r.out).toContain(commandText('ls', 'zh').description!)
   })
 
+  it('中文下显示的是查找表里的描述，而不是 Process 自带的 —— 两者必须可区分', async () => {
+    // ls 自带的 description 恰好和表里的 zh 文案字面相同（表是照抄既有中文
+    // 描述建的），上面那条用例因此测不出「查了表」还是「回落」——两条路径
+    // 结果一样。这里注册一个同名、自带描述是哨兵字符串的 stub，
+    // 只有真的查了表，输出里才会是表中的'列出目录内容'而不是这个哨兵。
+    const ctx = { ...makeTestCtx(), host: { ...testHost, currentLang: () => 'zh' as const } }
+    ctx.registry.register({
+      name: 'ls',
+      description: '哨兵：这是 Process 自带描述，不该出现在 help 里',
+      async run() { return 0 },
+    })
+    const r = await runCmd(help, ['help'], ctx)
+    expect(r.out).toContain('列出目录内容')
+    expect(r.out).not.toContain('哨兵')
+  })
+
   it('翻译表里没有的命令回落到 Process 自带的 description', async () => {
     const ctx = { ...makeTestCtx(), host: { ...testHost, currentLang: () => 'en' as const } }
     ctx.registry.register({ name: 'zzz', description: '自带描述', async run() { return 0 } })
