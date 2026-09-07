@@ -32,5 +32,5 @@ export function useLang() {
     try { localStorage.setItem(LANG_STORAGE_KEY, next) } catch { /* 忽略写入失败 */ }
   }, [])
 
-  return { lang, setLang, langs: LANGS }
+  return { lang, setLang }
 }
