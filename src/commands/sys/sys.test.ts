@@ -9,8 +9,10 @@ import { exportCmd } from './export'
 import { which } from './which'
 import { history } from './history'
 import { clear } from './clear'
-import { makeTestCtx, runCmd } from '../testkit'
+import { ls } from '../fs/ls'
+import { makeTestCtx, runCmd, testHost } from '../testkit'
 import type { Ctx, Process } from '../../core/process'
+import { commandText } from '../../i18n/commands'
 
 let ctx: Ctx
 
@@ -50,7 +52,10 @@ describe('man', () => {
   })
 
   it('没有 usage 时「用法」一节回落为命令名，而不是描述', async () => {
-    const out = (await runCmd(man, ['man', 'visible'], ctx)).out
+    // man 的一级标题（名称/用法）现在跟随语言，这里显式用中文 host
+    // 让断言只关注 usage 回落逻辑本身，不被默认语言（en）牵连。
+    const zhCtx = { ...ctx, host: { ...testHost, currentLang: () => 'zh' as const } }
+    const out = (await runCmd(man, ['man', 'visible'], zhCtx)).out
     expect(out).toContain('visible —— 看得见')      // 名称一节带描述
     expect(out).toContain('用法\n    visible\n')   // 用法一节回落为命令名
   })
@@ -73,7 +78,9 @@ describe('man', () => {
       async run() { return 0 },
     }
     ctx.registry.register(multiline)
-    const out = (await runCmd(man, ['man', 'multiline'], ctx)).out
+    // 同上：显式用中文 host，断言只关注多行 usage 的拆行逻辑。
+    const zhCtx = { ...ctx, host: { ...testHost, currentLang: () => 'zh' as const } }
+    const out = (await runCmd(man, ['man', 'multiline'], zhCtx)).out
     expect(out).toContain('用法\n    multiline [选项]\n      multiline sub   子命令说明\n')
   })
 })
@@ -155,5 +162,56 @@ describe('which / history / clear', () => {
     const spy = vi.spyOn(ctx.host, 'clear')
     await runCmd(clear, ['clear'], ctx)
     expect(spy).toHaveBeenCalledOnce()
+  })
+})
+
+describe('命令描述查找表', () => {
+  it('查得到时返回该语言的文案', () => {
+    expect(commandText('ls', 'en').description).toBeTruthy()
+    expect(commandText('ls', 'zh').description).toBeTruthy()
+    expect(commandText('ls', 'en').description).not.toBe(commandText('ls', 'zh').description)
+  })
+
+  it('查不到的命令返回空对象 —— 调用方据此回落到 Process 自带字段', () => {
+    expect(commandText('no-such-command', 'en')).toEqual({})
+  })
+})
+
+describe('help 按语言显示', () => {
+  it('英文下显示英文描述', async () => {
+    const ctx = { ...makeTestCtx(), host: { ...testHost, currentLang: () => 'en' as const } }
+    ctx.registry.register(ls)
+    const r = await runCmd(help, ['help'], ctx)
+    expect(r.out).toContain(commandText('ls', 'en').description!)
+  })
+
+  it('中文下显示中文描述', async () => {
+    const ctx = { ...makeTestCtx(), host: { ...testHost, currentLang: () => 'zh' as const } }
+    ctx.registry.register(ls)
+    const r = await runCmd(help, ['help'], ctx)
+    expect(r.out).toContain(commandText('ls', 'zh').description!)
+  })
+
+  it('翻译表里没有的命令回落到 Process 自带的 description', async () => {
+    const ctx = { ...makeTestCtx(), host: { ...testHost, currentLang: () => 'en' as const } }
+    ctx.registry.register({ name: 'zzz', description: '自带描述', async run() { return 0 } })
+    const r = await runCmd(help, ['help'], ctx)
+    expect(r.out).toContain('自带描述')
+  })
+})
+
+describe('man 按语言显示', () => {
+  it('英文下显示英文 usage', async () => {
+    const ctx = { ...makeTestCtx(), host: { ...testHost, currentLang: () => 'en' as const } }
+    ctx.registry.register(ls)
+    const r = await runCmd(man, ['man', 'ls'], ctx)
+    expect(r.out).toContain(commandText('ls', 'en').usage!)
+  })
+
+  it('翻译表里没有 usage 时回落到 Process 自带的', async () => {
+    const ctx = { ...makeTestCtx(), host: { ...testHost, currentLang: () => 'en' as const } }
+    ctx.registry.register({ name: 'zzz', description: 'd', usage: 'zzz --自带', async run() { return 0 } })
+    const r = await runCmd(man, ['man', 'zzz'], ctx)
+    expect(r.out).toContain('zzz --自带')
   })
 })
