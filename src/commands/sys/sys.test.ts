@@ -64,6 +64,18 @@ describe('man', () => {
   it('无参数返回 2', async () => {
     expect((await runCmd(man, ['man'], ctx)).code).toBe(2)
   })
+
+  it('usage 含多行时按行拆开输出，每行都带 4 空格缩进', async () => {
+    const multiline: Process = {
+      name: 'multiline',
+      description: '多行 usage',
+      usage: 'multiline [选项]\n  multiline sub   子命令说明',
+      async run() { return 0 },
+    }
+    ctx.registry.register(multiline)
+    const out = (await runCmd(man, ['man', 'multiline'], ctx)).out
+    expect(out).toContain('用法\n    multiline [选项]\n      multiline sub   子命令说明\n')
+  })
 })
 
 describe('whoami / uname / date', () => {

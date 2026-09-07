@@ -34,6 +34,7 @@
     src/core/ai/    Chrome 内置模型适配层，唯一接触 globalThis.LanguageModel 的地方
     src/commands/   内置命令，纯 TypeScript
     src/ui/         React 渲染层
+    src/ui/chat/    对话模式状态机与思考指示器
     src/ui/commands/  需要富输出（可点击卡片、图表）的命令
     src/content/    内容源
     src/seo/        构建时注入的静态简历

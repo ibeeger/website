@@ -22,7 +22,11 @@ export const man: Process = {
     io.stdout.writeLine(`    ${proc.name} —— ${proc.description}`)
     io.stdout.writeText('\n')
     io.stdout.writeLine('用法', HEADING)
-    io.stdout.writeLine(`    ${proc.usage ?? proc.name}`)
+    // usage 可能是多行字符串（子命令各占一行）；按单行写会把后续行的
+    // 缩进和终端左边界拼在一起，视觉上从第一行的悬挂缩进里掉出去。
+    for (const line of (proc.usage ?? proc.name).split('\n')) {
+      io.stdout.writeLine(`    ${line}`)
+    }
     return 0
   },
 }

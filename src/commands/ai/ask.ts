@@ -80,8 +80,8 @@ function buildSystemPrompt(ctx: Ctx): string {
 
 export const ask: Process = {
   name: 'ask',
-  description: '问我点什么（浏览器本地模型）',
-  usage: 'ask [--status] [问题...]',
+  description: '和我聊聊（浏览器本地模型）',
+  usage: 'ask [--status] [问题...]\n  ask            进入对话模式，exit 或 Ctrl+D 退出\n  ask <问题>      一次性问答',
 
   async run(io, ctx) {
     const args = io.argv.slice(1)
