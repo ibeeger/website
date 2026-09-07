@@ -22,5 +22,5 @@ it into `index.html` — clipped from sighted users, fully visible to crawlers a
 screen readers, and restored to normal layout when JavaScript is off.
 
 - Stack: TypeScript, React, Vite, Vitest
-- Size: ~3,500 lines of implementation, 45 test files / 524 cases
+- Size: ~4,000 lines of implementation and 500+ test cases
 - Status: actively maintained

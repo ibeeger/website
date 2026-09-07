@@ -10,8 +10,8 @@ boundary ESLint enforces, so a React import under `src/core/` fails the build.
 
 How I work:
 
-- **Tests first.** Roughly 3,500 lines of implementation against 45 test files
-  and 524 cases. The kernel runs under Node with no browser involved.
+- **Tests first.** Roughly 4,000 lines of implementation against 500+ test
+  cases. The kernel runs under Node with no browser involved.
 - **Comments explain why, not what.** The code already says what it does.
   Why it's written this way, and why not the other way, only a comment can carry.
 - **Accessibility isn't a patch.** With JavaScript disabled this terminal falls
