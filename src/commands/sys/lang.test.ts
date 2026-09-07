@@ -71,18 +71,6 @@ describe('lang', () => {
 })
 
 describe('lang 的输出跟随当前语言', () => {
-  // 两行标签都得用当前语言称呼，而不是各用各的自称 —— 只断言「整段有/没有
-  // 汉字」是抓不住的：中文列表里把 en 那行写成 English 照样满足「有汉字」。
-  // 所以直接钉住那个「说的是另一种语言」的格子。
-  it('列表里的语言标签跟着当前语言走 —— 英文站点上列一行中文标签就是混排', async () => {
-    const en = await runCmd(lang, ['lang'], ctxWithLang('en').ctx)
-    const zh = await runCmd(lang, ['lang'], ctxWithLang('zh').ctx)
-    expect(en.out).toContain('Chinese')   // en 界面里 zh 那一行
-    expect(en.out).not.toMatch(/[一-龥]/)
-    expect(zh.out).toContain('英语')       // zh 界面里 en 那一行
-    expect(zh.out).toContain('中文')
-  })
-
   it('非法值报错跟着当前语言走', async () => {
     const en = await runCmd(lang, ['lang', 'klingon'], ctxWithLang('en').ctx)
     const zh = await runCmd(lang, ['lang', 'klingon'], ctxWithLang('zh').ctx)
@@ -92,18 +80,25 @@ describe('lang 的输出跟随当前语言', () => {
     expect(zh.err).toMatch(/[一-龥]/)
   })
 
+  // 断言的是提示语这个「框」，不是里面嵌的语言标签 —— 标签用自称，英文提示里
+  // 本来就会出现「中文」两个字，拿「整句有没有汉字」判语言会把它误判成中文提示。
   it('切换成功提示跟着切换前的语言走 —— 用户读到的是他此刻还看得懂的那种', async () => {
     const en = await runCmd(lang, ['lang', 'zh'], ctxWithLang('en').ctx)
     const zh = await runCmd(lang, ['lang', 'en'], ctxWithLang('zh').ctx)
-    expect(en.out).not.toMatch(/[一-龥]/)
-    expect(zh.out).toMatch(/[一-龥]/)
+    expect(en.out).toContain('Interface language switched to')
+    expect(en.out).not.toContain('语言已切换为')
+    expect(zh.out).toContain('语言已切换为')
+    expect(zh.out).not.toContain('Interface language switched to')
   })
 
+  // 同上：钉提示语的框，不钉里面的标签。
   it('「已经是当前语言」的提示跟着语言走', async () => {
     const en = await runCmd(lang, ['lang', 'en'], ctxWithLang('en').ctx)
     const zh = await runCmd(lang, ['lang', 'zh'], ctxWithLang('zh').ctx)
-    expect(en.out).not.toMatch(/[一-龥]/)
-    expect(zh.out).toMatch(/[一-龥]/)
+    expect(en.out).toContain('is already in')
+    expect(en.out).not.toContain('当前语言已经是')
+    expect(zh.out).toContain('当前语言已经是')
+    expect(zh.out).not.toContain('is already in')
   })
 })
 
@@ -120,4 +115,18 @@ describe('lang 的切换提示要说全丢了什么', () => {
       for (const t of terms) expect(r.out.toLowerCase()).toContain(t.toLowerCase())
     })
   }
+})
+
+// 单独一组：标签是这条命令里唯一一处**不**跟随界面语言的输出，挂在
+// 「输出跟随当前语言」底下会让分组名把它说反。这是有意的差别 —— 报错和提示
+// 是说给当前用户听的，标签是给用户找自己那行用的。一个只读中文的访客落在
+// 英文界面上，正是靠「中文」这三个字认出该点哪个，翻成 Chinese 他就找不着了。
+describe('lang 的语言标签有意不跟随界面语言', () => {
+  it('两种界面语言下都用自称，两行都在', async () => {
+    for (const l of ['en', 'zh'] as const) {
+      const r = await runCmd(lang, ['lang'], ctxWithLang(l).ctx)
+      expect(r.out).toContain('English')
+      expect(r.out).toContain('中文')
+    }
+  })
 })

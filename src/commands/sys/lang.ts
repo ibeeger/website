@@ -1,5 +1,5 @@
 import { LANGS, type Lang } from '../../i18n/lang'
-import { LANG_TEXT } from '../../i18n/ui'
+import { LANG_LABEL, LANG_TEXT } from '../../i18n/ui'
 import type { Process, Style } from '../../core/process'
 
 const ACTIVE: Style = { color: 'green', bold: true }
@@ -25,7 +25,7 @@ export const lang: Process = {
     if (wanted === undefined) {
       for (const l of LANGS) {
         const isCurrent = l === current
-        io.stdout.writeLine(`  ${isCurrent ? '*' : ' '} ${l}  ${t.label[l]}`, isCurrent ? ACTIVE : undefined)
+        io.stdout.writeLine(`  ${isCurrent ? '*' : ' '} ${l}  ${LANG_LABEL[l]}`, isCurrent ? ACTIVE : undefined)
       }
       return 0
     }
@@ -41,8 +41,8 @@ export const lang: Process = {
     // 但选的就是当前语言时什么都不会重建（useLang 的 setState 同值直接 bail out，
     // 内核那个 useMemo 也就不会重算），这时候还报「已清空」就是在描述没发生的事。
     io.stdout.writeLine(wanted === current
-      ? t.already(t.label[wanted])
-      : t.switched(t.label[wanted]))
+      ? t.already(LANG_LABEL[wanted])
+      : t.switched(LANG_LABEL[wanted]))
     ctx.host.setLang(wanted)
     return 0
   },

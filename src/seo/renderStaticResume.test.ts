@@ -58,9 +58,21 @@ describe('renderStaticResume', () => {
   // 用户拿到的简历比 JS 用户的严格更小，跟「让作者更容易被搜到」的初衷正好
   // 相反。这里断言技能数据确实出现在输出里，且用的是 skillsToText 那份
   // 夹紧规则的同一个数据源（SkillGroup[]），不是另起一份口径。
-  it('包含技能小节：<h2>技能</h2> 与技能名称都出现在输出里', () => {
+  it('包含技能小节：<h2>Skills</h2> 与技能名称都出现在输出里', () => {
     const out = html()
-    expect(out).toContain('<h2>技能</h2>')
+    expect(out).toContain('<h2>Skills</h2>')
     expect(out).toContain('TypeScript')
+  })
+
+  // 这份 HTML 是爬虫与读屏软件拿到的那一份，规格定死了只输出英文版
+  // （见 vite-plugin-static-resume.ts 的 CONTENT_DIR）。内容标题来自 en 目录，
+  // 唯独这两行小标题是渲染器自己拼的 —— 写死中文就是在一份对外固定英文的
+  // 文档里插两行中文，而且它不像终端输出那样还能跟随用户的语言选择。
+  it('渲染器自己拼的段落标题是英文，不跟内容标题混排', () => {
+    const out = html()
+    expect(out).toContain('<h2>Skills</h2>')
+    expect(out).toContain('<h2>Projects</h2>')
+    expect(out).not.toContain('<h2>技能</h2>')
+    expect(out).not.toContain('<h2>项目</h2>')
   })
 })

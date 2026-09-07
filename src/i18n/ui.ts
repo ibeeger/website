@@ -135,9 +135,16 @@ export const ASK_TEXT: Record<Lang, AskText> = {
   },
 }
 
+/**
+ * `lang` 列表里每一行的标签，故意**不**按界面语言分两份 —— 这是这条命令里唯一
+ * 不跟随界面语言的输出。报错和提示是说给当前用户听的，标签是给用户找自己那行
+ * 用的：只读中文的访客落在英文界面上，正是靠「中文」这三个字认出该点哪个，
+ * 翻成 Chinese 反而把他要找的路标拆了。所以放在 LANG_TEXT 外面，
+ * 让「两种语言下必然相同」是结构上做不到不同，而不是两处字面碰巧一样。
+ */
+export const LANG_LABEL: Record<Lang, string> = { en: 'English', zh: '中文' }
+
 interface LangText {
-  /** 语言在当前界面语言下的叫法。列表两行都用当前语言称呼，不混排。 */
-  label: Record<Lang, string>
   unknown(value: string, available: string): string
   already(label: string): string
   switched(label: string): string
@@ -145,7 +152,6 @@ interface LangText {
 
 export const LANG_TEXT: Record<Lang, LangText> = {
   en: {
-    label: { en: 'English', zh: 'Chinese' },
     unknown: (value, available) => `lang: ${value}: unknown language. Available: ${available}`,
     already: label => `The interface is already in ${label}.`,
     switched: label => `Interface language switched to ${label}. The session is rebuilt: `
@@ -153,7 +159,6 @@ export const LANG_TEXT: Record<Lang, LangText> = {
       + `and the variables you exported are all gone.`,
   },
   zh: {
-    label: { en: '英语', zh: '中文' },
     unknown: (value, available) => `lang: ${value}: 未知语言。可用：${available}`,
     already: label => `当前语言已经是 ${label}。`,
     switched: label => `语言已切换为 ${label}。会话会重建：`

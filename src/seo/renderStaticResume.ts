@@ -64,8 +64,11 @@ export function renderStaticResume(
   // 命令——两者必须包含同一批小节。之前这里漏了技能，静态版本反而比
   // 终端里能打出来的版本更「瘦」，跟「让作者更容易被搜到」的目标正相反。
   // 用跟 skillsToText 相同的数据源与夹紧规则（clampLevel），保证口径一致。
+  //
+  // 小标题固定英文，不像 resume 命令那样查表：这份文档的内容来源被规格钉死在
+  // src/content/en（见 vite-plugin-static-resume.ts），没有第二种语言可跟随。
   if (skills.length > 0) {
-    sections.push('<h2>技能</h2>')
+    sections.push('<h2>Skills</h2>')
     for (const g of skills) {
       sections.push(`<h3>${escapeHtml(g.name)}</h3>`)
       sections.push('<ul>')
@@ -80,7 +83,7 @@ export function renderStaticResume(
     .filter(k => k.startsWith('projects/') && k.endsWith('.md'))
     .sort()
   if (projectKeys.length > 0) {
-    sections.push('<h2>项目</h2>')
+    sections.push('<h2>Projects</h2>')
     for (const k of projectKeys) sections.push(mdToHtml(files[k]!))
   }
 
