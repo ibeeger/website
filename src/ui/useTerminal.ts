@@ -5,6 +5,7 @@ import { loadContent } from '../content'
 import { builtins } from '../commands'
 import { uiCommands } from './commands'
 import { text } from '../core/process'
+import { DEFAULT_LANG } from '../i18n/lang'
 import { createUiHost, type UiHooks } from './host'
 import { createBlockWriter } from './blockWriter'
 import { useTheme } from './useTheme'
@@ -73,7 +74,7 @@ export function useTerminal() {
   // 惰性初始化：内核只在首次渲染时构造一次。
   // 不要写成 `if (ref.current === null) { ...; setPrompt(...) }` —— 那是 render 阶段 setState。
   const [kernel] = useState<Kernel>(() => createKernel({
-    vfs: buildInitialVfs(loadContent()),
+    vfs: buildInitialVfs(loadContent(DEFAULT_LANG)),
     host: createUiHost(hooksBox),
     commands: [...builtins, ...uiCommands],
     ai,

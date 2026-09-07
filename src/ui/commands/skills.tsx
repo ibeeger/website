@@ -1,6 +1,8 @@
 import { node, type Process } from '../../core/process'
 import { SkillBars, skillsToText, type SkillGroup } from '../rich/SkillBars'
-import { skills as skillsData } from '../../content'
+// 命令层暂不感知当前会话语言（那是 Task 3 的范围），先固定用 DEFAULT_LANG，
+// 与 useTerminal.ts 里 loadContent(DEFAULT_LANG) 的默认语言保持一致。
+import { enSkills as skillsData } from '../../content'
 
 export const skills: Process = {
   name: 'skills',

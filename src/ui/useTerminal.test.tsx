@@ -140,9 +140,10 @@ describe('useTerminal', () => {
   })
 
   it('内容来自真实的 content 目录', async () => {
+    // useTerminal 目前硬编码 DEFAULT_LANG（'en'）初始化 VFS，语言切换是 Task 3 的范围。
     const { result } = renderHook(() => useTerminal())
     act(() => { result.current.submit('cat about.md') })
-    await waitFor(() => expect(outputOf(result.current.blocks)).toContain('关于我'))
+    await waitFor(() => expect(outputOf(result.current.blocks)).toContain('About'))
   })
 
   it('complete 代理到内核', () => {

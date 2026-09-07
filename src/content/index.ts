@@ -1,23 +1,30 @@
 import { systemFiles } from './system'
-import skills from './skills.json'
+import enSkills from './en/skills.json'
+import zhSkills from './zh/skills.json'
+import type { Lang } from '../core/process'
 
 const HOME = '/home/guest'
 
 /** Vite 构建时把 Markdown 内容内联为字符串。此文件是 core 与 Vite 之间的唯一接缝。 */
-const markdown = import.meta.glob('./**/*.md', {
+const markdown = import.meta.glob('./*/**/*.md', {
   query: '?raw',
   import: 'default',
   eager: true,
 }) as Record<string, string>
 
-export function loadContent(): Record<string, string> {
-  const files: Record<string, string> = { ...systemFiles }
+const SKILLS: Record<Lang, unknown> = { en: enSkills, zh: zhSkills }
+
+export function loadContent(lang: Lang): Record<string, string> {
+  const files: Record<string, string> = { ...systemFiles(lang) }
+  const prefix = `./${lang}/`
   for (const [rel, content] of Object.entries(markdown)) {
-    // './projects/x.md' -> '/home/guest/projects/x.md'
-    files[HOME + rel.slice(1)] = content
+    if (!rel.startsWith(prefix)) continue
+    // './en/projects/x.md' -> '/home/guest/projects/x.md'
+    // 语言目录名不进 VFS 路径：访客该看到 about.md，而不是 en/about.md。
+    files[HOME + '/' + rel.slice(prefix.length)] = content
   }
-  files[`${HOME}/skills.json`] = JSON.stringify(skills, null, 2) + '\n'
+  files[`${HOME}/skills.json`] = JSON.stringify(SKILLS[lang], null, 2) + '\n'
   return files
 }
 
-export { skills }
+export { enSkills, zhSkills }

@@ -1,0 +1,40 @@
+{
+  "groups": [
+    {
+      "name": "Languages",
+      "items": [
+        { "name": "TypeScript", "level": 5 },
+        { "name": "JavaScript", "level": 5 },
+        { "name": "Rust", "level": 3 },
+        { "name": "Go", "level": 3 }
+      ]
+    },
+    {
+      "name": "Front end",
+      "items": [
+        { "name": "React", "level": 5 },
+        { "name": "Vite", "level": 4 },
+        { "name": "CSS", "level": 4 },
+        { "name": "WebAssembly", "level": 3 }
+      ]
+    },
+    {
+      "name": "Engineering",
+      "items": [
+        { "name": "Node.js", "level": 4 },
+        { "name": "Vitest", "level": 4 },
+        { "name": "ESLint", "level": 4 },
+        { "name": "Git", "level": 4 },
+        { "name": "CI/CD", "level": 3 },
+        { "name": "GitHub Actions", "level": 3 }
+      ]
+    },
+    {
+      "name": "Other",
+      "items": [
+        { "name": "Accessibility", "level": 3 },
+        { "name": "SEO", "level": 3 }
+      ]
+    }
+  ]
+}

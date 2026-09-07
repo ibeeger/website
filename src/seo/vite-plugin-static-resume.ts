@@ -4,7 +4,8 @@ import type { Plugin } from 'vite'
 import { renderStaticResume } from './renderStaticResume.ts'
 import type { SkillGroup } from '../ui/rich/skillsText.ts'
 
-const CONTENT_DIR = 'src/content'
+// 静态简历只服务爬虫与禁用 JS 的访客，规格要求固定输出英文版。
+const CONTENT_DIR = 'src/content/en'
 
 function collect(): Record<string, string> {
   const files: Record<string, string> = {}

@@ -2,7 +2,9 @@ import { node, type Process } from '../../core/process'
 import { Markdown } from '../rich/Markdown'
 import { parseProject, projectToText } from '../rich/ProjectCard'
 import { skillsToText, type SkillGroup } from '../rich/SkillBars'
-import { skills as skillsData } from '../../content'
+// 命令层暂不感知当前会话语言（那是 Task 3 的范围），先固定用 DEFAULT_LANG，
+// 与 useTerminal.ts 里 loadContent(DEFAULT_LANG) 的默认语言保持一致。
+import { enSkills as skillsData } from '../../content'
 import { readOrFail } from './about'
 
 /** 把 about / skills / projects 拼成一页可通读的简历。 */
