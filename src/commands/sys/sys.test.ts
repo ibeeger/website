@@ -12,7 +12,7 @@ import { clear } from './clear'
 import { ls } from '../fs/ls'
 import { makeTestCtx, runCmd, testHost } from '../testkit'
 import type { Ctx, Process } from '../../core/process'
-import { commandText } from '../../i18n/commands'
+import { commandText } from '../../i18n/commandMeta'
 
 let ctx: Ctx
 
@@ -213,6 +213,57 @@ describe('help 按语言显示', () => {
     ctx.registry.register({ name: 'zzz', description: '自带描述', async run() { return 0 } })
     const r = await runCmd(help, ['help'], ctx)
     expect(r.out).toContain('自带描述')
+  })
+})
+
+// help 与 man 里还有五处 `lang === 'zh' ? ... : ...` 直接写在函数体内 ——
+// 一级标题与提示行不走 commandMeta 那张表，i18nCoverage 也就照不到它们。
+// 终审做过变异实测：把这几处删成只剩英文，整套 595 条依旧全绿。下面三条把
+// 它们钉住：每条都同时断言「本语言那句在」与「另一语言那句不在」，
+// 删掉任一侧的字面量都会有用例变红，而不是只在写死成某一种时才红。
+describe('help / man 的内联双语文案', () => {
+  function langCtx(l: 'en' | 'zh') {
+    const c = makeTestCtx()
+    c.registry.register(visible)
+    return { ...c, host: { ...testHost, currentLang: () => l } }
+  }
+
+  it('help 的标题行与末尾提示行跟随语言', async () => {
+    const en = (await runCmd(help, ['help'], langCtx('en'))).out
+    expect(en).toContain('Available commands:')
+    expect(en).toContain('Type `man <command>` for usage. Tab completes, ↑↓ walks history.')
+    expect(en).not.toContain('可用命令：')
+    expect(en).not.toContain('输入 `man <命令>` 查看用法')
+
+    const zh = (await runCmd(help, ['help'], langCtx('zh'))).out
+    expect(zh).toContain('可用命令：')
+    expect(zh).toContain('输入 `man <命令>` 查看用法，Tab 键补全，↑↓ 翻历史。')
+    expect(zh).not.toContain('Available commands:')
+    expect(zh).not.toContain('Type `man <command>` for usage')
+  })
+
+  it('man 的两个小节标题跟随语言', async () => {
+    const en = (await runCmd(man, ['man', 'visible'], langCtx('en'))).out
+    expect(en).toContain('NAME\n')
+    expect(en).toContain('USAGE\n')
+    expect(en).not.toContain('名称\n')
+    expect(en).not.toContain('用法\n')
+
+    const zh = (await runCmd(man, ['man', 'visible'], langCtx('zh'))).out
+    expect(zh).toContain('名称\n')
+    expect(zh).toContain('用法\n')
+    expect(zh).not.toContain('NAME\n')
+    expect(zh).not.toContain('USAGE\n')
+  })
+
+  it('man 无参数时的用法行跟随语言', async () => {
+    const en = (await runCmd(man, ['man'], langCtx('en'))).err
+    expect(en).toContain('Usage: man command')
+    expect(en).not.toContain('用法: man 命令')
+
+    const zh = (await runCmd(man, ['man'], langCtx('zh'))).err
+    expect(zh).toContain('用法: man 命令')
+    expect(zh).not.toContain('Usage: man command')
   })
 })
 

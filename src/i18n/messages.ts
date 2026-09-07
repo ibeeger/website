@@ -3,7 +3,7 @@ import type { Lang } from '../core/process'
 type Kind = 'unsupported' | 'unavailable' | 'downloadable' | 'downloading'
 
 /**
- * 命令的运行时输出文案。和 i18n/commands.ts 的分工是：那边是 help/man 里的
+ * 命令的运行时输出文案。和 i18n/commandMeta.ts 的分工是：那边是 help/man 里的
  * 描述与用法（查不到就回落到 Process 自带字段），这边是命令跑起来真正打到
  * 屏幕上的话，没有回落可言 —— 少一种语言就是英文站点上冒出一段中文。
  *

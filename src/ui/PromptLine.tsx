@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { RefObject } from 'react'
+import type { Lang } from '../i18n/lang'
+import { UI_TEXT } from '../i18n/uiText'
 
 export type PromptLineProps = {
   prompt: string
@@ -20,9 +22,14 @@ export type PromptLineProps = {
   /** 外部想拿到真 input 的引用时用（比如把整个终端容器都设为点击聚焦）。 */
   inputRef?: RefObject<HTMLInputElement | null>
   /**
-   * 输入框的可访问名。默认是 shell 下的说法；调用方在切换交互模式时应当改写它
-   * —— 提示符不在 aria-live 区域里，模式变化不会被播报，这个名字是读屏用户
-   * 唯一能感知到「现在在哪个模式」的地方。
+   * 界面语言。必填而不是给个默认值：默认的可访问名要跟着它走，
+   * 少传一次就是一个中文名字被读屏用英文音系念出来（<html lang> 是 en）。
+   */
+  lang: Lang
+  /**
+   * 输入框的可访问名。不传则用 lang 对应的 shell 说法；调用方在切换交互模式时
+   * 应当改写它 —— 提示符不在 aria-live 区域里，模式变化不会被播报，这个名字是
+   * 读屏用户唯一能感知到「现在在哪个模式」的地方。
    */
   ariaLabel?: string
 }
@@ -138,7 +145,7 @@ export function PromptLine(props: PromptLineProps) {
           autoCorrect="off"
           autoComplete="off"
           spellCheck={false}
-          aria-label={props.ariaLabel ?? '终端命令输入'}
+          aria-label={props.ariaLabel ?? UI_TEXT[props.lang].commandInput}
         />
       </span>
     </div>

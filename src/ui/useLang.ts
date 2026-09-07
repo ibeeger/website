@@ -8,7 +8,12 @@ function isLang(v: unknown): v is Lang {
   return typeof v === 'string' && (LANGS as readonly string[]).includes(v)
 }
 
-function readStored(): Lang {
+/**
+ * 从 localStorage 读一次已选语言。导出是给根 ErrorBoundary 的 fallback 用的：
+ * 它挂在 useLang 之上，拿不到 hook 的状态，只能自己读一次存档。
+ * 整个函数不许抛 —— 那条路径上一次异常就是白屏。
+ */
+export function readStoredLang(): Lang {
   try {
     const saved = localStorage.getItem(LANG_STORAGE_KEY)
     return isLang(saved) ? saved : DEFAULT_LANG
@@ -18,7 +23,7 @@ function readStored(): Lang {
 }
 
 export function useLang() {
-  const [lang, setLangState] = useState<Lang>(readStored)
+  const [lang, setLangState] = useState<Lang>(readStoredLang)
 
   // 与 useTheme 同理用 useLayoutEffect：<html lang> 影响读屏发音，
   // 让它在首次绘制前就位，而不是绘制后再改。

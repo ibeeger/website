@@ -8,6 +8,7 @@ import { useCompletion } from './useCompletion'
 import { BootSequence } from './BootSequence'
 import { MobileKeyBar, type MobileKey } from './MobileKeyBar'
 import { useVisualViewport } from './useVisualViewport'
+import { UI_TEXT } from '../i18n/uiText'
 
 const BANNER = [
   '  _                      _             _ ',
@@ -133,7 +134,7 @@ export function Terminal() {
     <div
       className="terminal"
       role="application"
-      aria-label="交互式终端"
+      aria-label={UI_TEXT[term.lang].terminalLabel}
       style={{ paddingBottom: bottomInset }}
       // 点击终端里任意位置都聚焦输入框：这是唯一的焦点恢复手段（尤其是移动端，
       // 一行高的 .promptline 几乎点不中），所以覆盖面要大于那一行。
@@ -148,7 +149,7 @@ export function Terminal() {
     >
       {!booted && <BootSequence lines={bootLines} onDone={() => setBooted(true)} />}
       <div aria-live="polite" aria-atomic="false">
-        {term.blocks.map(b => <OutputBlock key={b.id} block={b} />)}
+        {term.blocks.map(b => <OutputBlock key={b.id} block={b} lang={term.lang} />)}
       </div>
       {hint.length > 0 && <div className="completion-hint">{hint.join('  ')}</div>}
       {booted && <PromptLine
@@ -160,7 +161,10 @@ export function Terminal() {
         // 提示符不在 aria-live 区域内，模式切换对读屏是完全静默的；这个 label
         // 是输入框自身的可访问名，随模式改写后，切换才在无障碍树里留下痕迹，
         // 也顺带把退出方式说给听不到提示符变化的用户。
-        ariaLabel={term.chatActive ? '对话模式输入，exit 或 Ctrl+D 退出' : '终端命令输入'}
+        // shell 下不覆写 ariaLabel，交给 PromptLine 按 lang 算它自己的默认名 ——
+        // 「终端命令输入」这句话只在 i18n/uiText.ts 里写一次。
+        lang={term.lang}
+        ariaLabel={term.chatActive ? UI_TEXT[term.lang].chatInput : undefined}
         // 不传 disabled：useTerminal.submit 里的重入守卫已经是唯一必须成立的
         // 不变量，UI 层的 disabled 只会是重复的第二道防线。真做了反而更糟——
         // 浏览器会在 input 变 disabled 的瞬间把焦点踢到 <body>，页面上没有任何

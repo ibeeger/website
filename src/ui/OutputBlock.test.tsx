@@ -4,6 +4,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { OutputBlock } from './OutputBlock'
 import { node, text } from '../core/process'
+import { UI_TEXT } from '../i18n/uiText'
 import type { Block } from './types'
 
 function blockWith(chunks: Block['chunks']): Block {
@@ -12,7 +13,7 @@ function blockWith(chunks: Block['chunks']): Block {
 
 describe('OutputBlock', () => {
   it('正常 chunk 照常渲染', () => {
-    render(<OutputBlock block={blockWith([text('hello')])} />)
+    render(<OutputBlock block={blockWith([text('hello')])} lang="en" />)
     expect(screen.getByText('hello')).toBeTruthy()
   })
 
@@ -22,7 +23,7 @@ describe('OutputBlock', () => {
     const bad = node(<Boom />, () => 'plain fallback text')
 
     const { container } = render(
-      <OutputBlock block={blockWith([text('before '), bad, text(' after')])} />,
+      <OutputBlock block={blockWith([text('before '), bad, text(' after')])} lang="en" />,
     )
 
     // 前后两个普通 text chunk 是裸文本节点，没有自己的元素可查——
@@ -37,7 +38,7 @@ describe('OutputBlock', () => {
       id: 'b1', prompt: 'ask> ', input: '你好', chunks: [],
       exitCode: null, kind: 'chat', phase: 'thinking',
     }
-    const { container } = render(<OutputBlock block={block} />)
+    const { container } = render(<OutputBlock block={block} lang="en" />)
     // 直接查指示器自己的 class，而不是 [aria-busy]：streaming 中的 chat block
     // 整块也带 aria-busy（抑制读屏逐分片重播），拿那个属性当指示器的替身会
     // 把两件不相干的事混在一起，两边都测不准。
@@ -49,7 +50,7 @@ describe('OutputBlock', () => {
       id: 'b1', prompt: 'ask> ', input: '你好', chunks: [text('回答')],
       exitCode: null, kind: 'chat', phase: 'streaming',
     }
-    const { container } = render(<OutputBlock block={block} />)
+    const { container } = render(<OutputBlock block={block} lang="en" />)
     expect(container.querySelector('.chat-thinking')).toBeNull()
   })
 
@@ -60,7 +61,7 @@ describe('OutputBlock', () => {
       id: 'b1', prompt: 'ask> ', input: '你好', chunks: [text('回答')],
       exitCode: null, kind: 'chat', phase: 'streaming',
     }
-    const { container } = render(<OutputBlock block={block} />)
+    const { container } = render(<OutputBlock block={block} lang="en" />)
     expect(container.querySelector('.block-chat')?.getAttribute('aria-busy')).toBe('true')
   })
 
@@ -69,7 +70,7 @@ describe('OutputBlock', () => {
       id: 'b1', prompt: 'ask> ', input: '你好', chunks: [text('回答')],
       exitCode: null, kind: 'chat', phase: 'idle',
     }
-    const { container } = render(<OutputBlock block={block} />)
+    const { container } = render(<OutputBlock block={block} lang="en" />)
     expect(container.querySelector('.block-chat')?.getAttribute('aria-busy')).toBeNull()
   })
 
@@ -78,9 +79,33 @@ describe('OutputBlock', () => {
       id: 'b1', prompt: 'ask> ', input: '你好', chunks: [text('半句')],
       exitCode: null, kind: 'chat', phase: 'idle', interrupted: true,
     }
-    render(<OutputBlock block={block} />)
-    expect(screen.getByText(/已中断/)).toBeTruthy()
+    render(<OutputBlock block={block} lang="en" />)
+    expect(screen.getByText(UI_TEXT.en.interrupted)).toBeTruthy()
     expect(screen.getByText(/半句/)).toBeTruthy()
+  })
+
+  // <html lang> 是 en，中断标记若永远是中文，读屏会拿英文音系去念那三个汉字，
+  // 出来的是噪音或干脆静默——这一条钉住它跟着界面语言走。
+  it('中断标记跟随界面语言 —— 两种语言各显示自己那句，且不互相串台', () => {
+    const block: Block = {
+      id: 'b1', prompt: 'ask> ', input: '你好', chunks: [],
+      exitCode: null, kind: 'chat', phase: 'idle', interrupted: true,
+    }
+    const en = render(<OutputBlock block={block} lang="en" />).container
+    expect(en.querySelector('.t-dim')?.textContent).toBe(UI_TEXT.en.interrupted)
+    expect(en.textContent).not.toContain(UI_TEXT.zh.interrupted)
+
+    const zh = render(<OutputBlock block={block} lang="zh" />).container
+    expect(zh.querySelector('.t-dim')?.textContent).toBe(UI_TEXT.zh.interrupted)
+  })
+
+  it('把界面语言透传给思考指示器 —— 指示器自己没有别的语言来源', () => {
+    const block: Block = {
+      id: 'b1', prompt: 'ask> ', input: '你好', chunks: [],
+      exitCode: null, kind: 'chat', phase: 'thinking',
+    }
+    const zh = render(<OutputBlock block={block} lang="zh" />).container
+    expect(zh.querySelector('.chat-thinking')?.textContent).toContain(UI_TEXT.zh.thinking)
   })
 
   it('出错的 chat block 标红显示错误', () => {
@@ -88,7 +113,7 @@ describe('OutputBlock', () => {
       id: 'b1', prompt: 'ask> ', input: '你好', chunks: [],
       exitCode: null, kind: 'chat', phase: 'idle', error: '模型炸了',
     }
-    const { container } = render(<OutputBlock block={block} />)
+    const { container } = render(<OutputBlock block={block} lang="en" />)
     expect(container.querySelector('.t-red')?.textContent).toContain('模型炸了')
   })
 
@@ -96,7 +121,7 @@ describe('OutputBlock', () => {
     const block: Block = {
       id: 'b1', prompt: '$ ', input: 'ls', chunks: [text('a.md')], exitCode: 0,
     }
-    const { container } = render(<OutputBlock block={block} />)
+    const { container } = render(<OutputBlock block={block} lang="en" />)
     expect(container.querySelector('[aria-busy="true"]')).toBeNull()
     expect(container.querySelector('.block-chat')).toBeNull()
   })

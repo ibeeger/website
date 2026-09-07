@@ -1,5 +1,5 @@
 import { node, type Process } from '../../core/process'
-import { RESUME_TEXT } from '../../i18n/ui'
+import { RESUME_TEXT } from '../../i18n/messages'
 import { Markdown } from '../rich/Markdown'
 import { parseProject, projectToText } from '../rich/ProjectCard'
 import { skillsToText } from '../rich/SkillBars'

@@ -1,5 +1,5 @@
 import type { Process, Style } from '../../core/process'
-import { commandText } from '../../i18n/commands'
+import { commandText } from '../../i18n/commandMeta'
 
 const NAME_STYLE: Style = { color: 'green', bold: true }
 

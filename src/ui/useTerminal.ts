@@ -225,6 +225,10 @@ export function useTerminal() {
 
   return {
     blocks, running,
+    // 渲染层也要这份语言：终端外壳自己的可访问名与可见文案（见 i18n/uiText.ts）
+    // 得跟着切。不让 <Terminal> 自己再调一次 useLang —— 那会是第二份独立的
+    // useState，lang 命令改的是这里这一份，壳上的文案就永远停在初始值。
+    lang,
     prompt: chat.active ? CHAT_PROMPT : prompt,
     chatActive: chat.active,
     chatInputs: chat.inputs,

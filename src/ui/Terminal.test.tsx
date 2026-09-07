@@ -4,6 +4,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { Terminal } from './Terminal'
 import { BOOT_STORAGE_KEY } from './BootSequence'
+import { UI_TEXT } from '../i18n/uiText'
 
 // jsdom 没实现 scrollIntoView；Terminal 的自动滚底效果会调用它，不垫一个空实现
 // 每个渲染了 <Terminal /> 的测试都会因为不相关的 TypeError 而炸掉。
@@ -22,7 +23,12 @@ vi.mock('../core/ai/languageModel', async (importOriginal) => {
 // 关心的是命令运行期间的焦点/disabled 行为，不是开机动画本身（那部分由
 // BootSequence.test.tsx 单独覆盖），所以标记为「已播放过」以跳过动画、
 // 让 PromptLine 与其 input 立即挂载。
-beforeEach(() => { sessionStorage.setItem(BOOT_STORAGE_KEY, '1') })
+// localStorage 存着已选语言，jsdom 里它跨用例存活。下面有用例真的执行 `lang zh`，
+// 不清的话它会把这个文件里后续所有用例都染成中文。
+beforeEach(() => {
+  sessionStorage.setItem(BOOT_STORAGE_KEY, '1')
+  localStorage.clear()
+})
 
 describe('Terminal', () => {
   it('命令运行期间与结束后，input 都不会被 disabled，焦点也不会丢（回归：曾经因 disabled={running} 被浏览器踢到 body）', async () => {
@@ -320,15 +326,49 @@ describe('Terminal', () => {
   it('进入对话模式后输入框的可访问名随之改变 —— 提示符不在 live region 里，读屏只能从这里知道换了模式', async () => {
     render(<Terminal />)
     const input = screen.getByRole('textbox')
-    expect(input.getAttribute('aria-label')).toBe('终端命令输入')
+    expect(input.getAttribute('aria-label')).toBe(UI_TEXT.en.commandInput)
 
     fireEvent.change(input, { target: { value: 'ask' } })
     fireEvent.keyDown(input, { key: 'Enter' })
     await screen.findByText(/ask> /, { trim: false })
 
-    expect(input.getAttribute('aria-label')).toContain('对话模式')
+    expect(input.getAttribute('aria-label')).toBe(UI_TEXT.en.chatInput)
     // 名字里带上退出方式：模式切换本身播报不出来，这是唯一能交代出口的地方。
     expect(input.getAttribute('aria-label')).toContain('Ctrl+D')
+  })
+
+  // 本分支把 <html lang> 从 zh-CN 改成了 en。留在 JSX 里的中文可访问名于是会被
+  // 读屏用英文音系去念汉字——出来的是噪音或干脆静默。这条把外壳上那两个名字
+  // （role=application 的标签、输入框的可访问名）和界面语言绑在一起。
+  it('切换界面语言后，终端容器与输入框的可访问名都跟着换 —— 它们是读屏用户必然撞上的两个名字', async () => {
+    render(<Terminal />)
+    expect(screen.getByRole('application').getAttribute('aria-label')).toBe(UI_TEXT.en.terminalLabel)
+    expect(screen.getByRole('textbox').getAttribute('aria-label')).toBe(UI_TEXT.en.commandInput)
+
+    const input = screen.getByRole('textbox')
+    fireEvent.change(input, { target: { value: 'lang zh' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    await waitFor(() => {
+      expect(screen.getByRole('application').getAttribute('aria-label')).toBe(UI_TEXT.zh.terminalLabel)
+    })
+    expect(screen.getByRole('textbox').getAttribute('aria-label')).toBe(UI_TEXT.zh.commandInput)
+  })
+
+  it('中文界面下进入对话模式，输入框的可访问名也是中文那句 —— 两个维度不能只跟一个', async () => {
+    render(<Terminal />)
+    const input = screen.getByRole('textbox')
+    fireEvent.change(input, { target: { value: 'lang zh' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() => {
+      expect(screen.getByRole('application').getAttribute('aria-label')).toBe(UI_TEXT.zh.terminalLabel)
+    })
+
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'ask' } })
+    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' })
+    await screen.findByText(/ask> /, { trim: false })
+
+    expect(screen.getByRole('textbox').getAttribute('aria-label')).toBe(UI_TEXT.zh.chatInput)
   })
 
   it('对话模式下生成中按 Ctrl+D 也退出模式 —— EOF 是「我要走了」，不是「停这一轮」', async () => {

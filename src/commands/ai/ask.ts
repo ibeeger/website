@@ -1,5 +1,5 @@
 import { readAll } from '../lib'
-import { ASK_TEXT, DIAGNOSIS_TEXT } from '../../i18n/ui'
+import { ASK_TEXT, DIAGNOSIS_TEXT } from '../../i18n/messages'
 import type { Ctx, Lang, Process } from '../../core/process'
 
 const PERSONA_FILES = ['about.md', 'skills.json']

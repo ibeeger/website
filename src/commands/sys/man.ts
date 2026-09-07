@@ -1,5 +1,5 @@
 import type { Process, Style } from '../../core/process'
-import { commandText } from '../../i18n/commands'
+import { commandText } from '../../i18n/commandMeta'
 
 const HEADING: Style = { bold: true }
 

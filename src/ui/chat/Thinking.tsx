@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import type { Lang } from '../../i18n/lang'
+import { UI_TEXT } from '../../i18n/uiText'
 
 const DOTS = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
 const FRAME_MS = 80
@@ -8,7 +10,7 @@ const FRAME_MS = 80
  * 首次唤醒本地模型确实要几秒，把耗时摆出来比让用户猜「是不是卡死了」要好；
  * 但对已经预热的模型，秒数一闪而过反而是噪音。
  */
-export function Thinking() {
+export function Thinking({ lang }: { lang: Lang }) {
   const [frame, setFrame] = useState(0)
   const [elapsed, setElapsed] = useState(0)
 
@@ -25,7 +27,7 @@ export function Thinking() {
     // 可访问文本永远是「思考中」，只播报一次——秒数只服务视觉用户。
     <div className="chat-thinking" aria-busy="true">
       <span className="chat-spinner" aria-hidden="true">{DOTS[frame % DOTS.length]}</span>
-      <span>思考中</span>
+      <span>{UI_TEXT[lang].thinking}</span>
       {elapsed > 0 && <span aria-hidden="true"> {elapsed}s</span>}
     </div>
   )

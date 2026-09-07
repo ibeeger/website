@@ -10,6 +10,7 @@ function setup(value: string) {
   const onInterrupt = vi.fn()
   render(
     <PromptLine
+      lang="en"
       prompt="$ " value={value}
       onChange={onChange} onSubmit={vi.fn()}
       onHistoryPrev={vi.fn()} onHistoryNext={vi.fn()}

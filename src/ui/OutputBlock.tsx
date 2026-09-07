@@ -2,6 +2,8 @@ import { ChunkView } from './ChunkView'
 import { ErrorBoundary } from './ErrorBoundary'
 import { Thinking } from './chat/Thinking'
 import { chunkToText } from '../core/process'
+import type { Lang } from '../i18n/lang'
+import { UI_TEXT } from '../i18n/uiText'
 import type { Block } from './types'
 
 /** node chunk 渲染失败时的兜底：退回它自己的 toText()，标红显示。 */
@@ -11,7 +13,7 @@ function chunkFallback(c: Parameters<typeof chunkToText>[0]) {
   return <span className="t-red">{text}</span>
 }
 
-export function OutputBlock({ block }: { block: Block }) {
+export function OutputBlock({ block, lang }: { block: Block; lang: Lang }) {
   const isChat = block.kind === 'chat'
   return (
     <div
@@ -38,8 +40,8 @@ export function OutputBlock({ block }: { block: Block }) {
           ))}
         </div>
       )}
-      {isChat && block.phase === 'thinking' && <Thinking />}
-      {isChat && block.interrupted === true && <div className="t-dim">^C 已中断</div>}
+      {isChat && block.phase === 'thinking' && <Thinking lang={lang} />}
+      {isChat && block.interrupted === true && <div className="t-dim">{UI_TEXT[lang].interrupted}</div>}
       {isChat && block.error !== undefined && <div className="t-red">ask: {block.error}</div>}
     </div>
   )

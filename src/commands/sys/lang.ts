@@ -1,5 +1,5 @@
 import { LANGS, type Lang } from '../../i18n/lang'
-import { LANG_LABEL, LANG_TEXT } from '../../i18n/ui'
+import { LANG_LABEL, LANG_TEXT } from '../../i18n/messages'
 import type { Process, Style } from '../../core/process'
 
 const ACTIVE: Style = { color: 'green', bold: true }

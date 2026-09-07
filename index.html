@@ -29,11 +29,14 @@
       }
       body { background: #1a1b26; }
 
-      /* 以下两条必须内联在此，不能放进 global.css：
-         它们管辖的静态简历标记由构建期插件直接注入本文件，
-         必须在首帧就生效。放进外部样式表会让开发模式下先画出整份简历再藏起来。
-         clip 裁剪而非 display:none —— 后者会被读屏软件跳过，等于没做无障碍。
-         注意：<body> 末尾 <noscript> 里的 <style> 依靠源码顺序覆盖这里，禁用 JS 时还原可见。 */
+      /* The two rules below must stay inline here rather than move into global.css:
+         the static resume markup they govern is injected into this very file by a
+         build-time plugin and has to be styled on the first frame. From an external
+         stylesheet, dev mode would paint the whole resume before hiding it.
+         Clipping instead of display:none — the latter is skipped by screen readers,
+         which would defeat the point of having an accessible copy at all.
+         Note: the <style> inside <noscript> at the end of <body> overrides these by
+         source order, restoring visibility when JS is disabled. */
       #static-resume {
         position: absolute;
         width: 1px; height: 1px;
