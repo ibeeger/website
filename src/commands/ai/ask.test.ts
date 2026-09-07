@@ -105,8 +105,10 @@ describe('ask —— 提问', () => {
       ai: fakeAi({ kind: 'downloadable' }, ['答'], { progress: [0.25, 1] }),
     }
     const r = await runCmd(ask, ['ask', '你好'], ctx)
-    expect(r.out).toContain('25%')
-    expect(r.out).toContain('100%')
+    expect(r.out).toContain('开始下载')
+    // 完整断言进度条字符串，而不只是百分比数字——20 格里 25% 对应 5 格 #。
+    expect(r.out).toContain('[#####...............] 25%')
+    expect(r.out).toContain('[####################] 100%')
   })
 })
 
@@ -164,6 +166,15 @@ describe('ask —— 进入对话模式', () => {
     expect(host.chatCalls).toHaveLength(0)
     expect(r.code).toBe(1)
     expect(r.err).toContain('chrome://flags')
+  })
+
+  it('无参数时 downloadable 不触发下载、不进入对话模式 —— 用户还没表示要等 2GB', async () => {
+    const host = recordingHost()
+    const ctx = { ...makeTestCtx(FILES), host, ai: fakeAi({ kind: 'downloadable' }) }
+    const r = await runCmd(ask, ['ask'], ctx)
+    expect(host.chatCalls).toHaveLength(0)
+    expect(r.code).toBe(1)
+    expect(r.err).toContain('ask <问题>')
   })
 
   it('带问题时是一次性问答，不进入模式', async () => {
