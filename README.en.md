@@ -72,6 +72,14 @@ description to `src/i18n/commands.ts` — without an entry it falls back to the
 Commands send and receive through `io.stdin` / `io.stdout`, so pipes and
 redirection work for free.
 
+## WASM extensions
+
+The command contract is deliberately shaped so a WASM module can implement it
+directly: `IO` is streaming, and `Registry.register()` can be called at
+runtime. Mounting a `.wasm` module only takes a new `src/core/wasm/loader.ts`
+bridging WASI's stdin/stdout onto `IO`; nothing else under `src/core/` has to
+change.
+
 ## Deployment
 
 Pushing to `main` deploys to GitHub Pages via GitHub Actions. The custom domain
