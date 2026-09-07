@@ -22,11 +22,12 @@ browse the content.
 
 ## Editing content
 
-Day-to-day résumé edits **only touch `src/content/`** — no code changes needed:
+Day-to-day résumé edits **only touch `src/content/`** — no code changes needed.
+Content is split into two directories, one per language, `en/` and `zh/`:
 
 - `en/about.md`, `zh/about.md` — body text for the `about` command and the static résumé
 - `en/contact.md`, `zh/contact.md` — contact details
-- `en/projects/*.md`, `zh/projects/*.md` — one file per project; adding a file adds a project
+- `en/projects/*.md`, `zh/projects/*.md` — one file per project; adding a file adds a project (copy an existing one and edit the content)
 - `en/skills.json`, `zh/skills.json` — skill groups, `level` from 1 to 5
 
 Run `pnpm build` afterwards; the static résumé and the virtual filesystem both

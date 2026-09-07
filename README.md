@@ -64,7 +64,8 @@ export const hello: Process = {
 }
 ```
 
-然后加进 `src/commands/index.ts` 的 `builtins`。
+然后加进 `src/commands/index.ts` 的 `builtins`。也可以在 `src/i18n/commands.ts`
+里补一条它的描述——不补的话会退回到 `Process` 自身的 `description`。
 
 命令通过 `io.stdin` / `io.stdout` 收发数据，因此天然支持管道与重定向。
 
