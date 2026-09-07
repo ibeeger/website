@@ -5,8 +5,11 @@ import { render } from '@testing-library/react'
 import { SkillBars, skillsToText, clampLevel, type SkillGroup } from './SkillBars'
 
 // 站点作者手改 skills.json 时打错等级（超出 1-5 或负数）是完全可预见的输入。
-// node chunk 是在 React 渲染阶段才求值的，proc.run 的 try/catch 早就返回了，
-// 内核的执行器无法兜住这里抛出的异常 —— 一次 level 打错就是白屏，而不是一条错误提示。
+// 越界的 level 仍是合法 number，过得了 readSkillGroups 那道形状校验——形状不对
+// 才有 stderr + 退出码 1。而 node chunk 是在 React 渲染阶段才求值的，proc.run 的
+// try/catch 早就返回了，这里真抛出去只会被 OutputBlock 的 ErrorBoundary 兜成一行
+// 标红的降级文本，没有退出码也没有 stderr。所以这些输入必须被夹住，
+// 而不是指望异常把问题喊出来。
 const OUT_OF_RANGE_GROUPS: SkillGroup[] = [
   { name: '语言', items: [{ name: 'TypeScript', level: 6 }] },
   { name: '前端', items: [{ name: 'CSS', level: -1 }] },

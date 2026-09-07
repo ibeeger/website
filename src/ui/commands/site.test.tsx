@@ -9,7 +9,7 @@ import { contact } from './contact'
 import { resume } from './resume'
 import { open as openCmd } from './open'
 import { matrix } from './matrix'
-import { makeTestCtx, runCmd } from '../../commands/testkit'
+import { makeTestCtx, runCmd, testHost } from '../../commands/testkit'
 import { chunkToText, type Chunk, type Ctx } from '../../core/process'
 
 const FILES = {
@@ -156,6 +156,24 @@ describe('resume', () => {
     const text = asText((await runCmd(resume, ['resume'], other)).chunks)
     expect(text).toContain('Brainfuck')
     expect(text).not.toContain('Languages')   // 真实英文技能表的分组名
+  })
+
+  // 段落标题是命令自己拼的，不来自任何内容文件 —— 硬编码中文的话，英文站点上
+  // 一页英文简历里会突然插进两行中文小标题。
+  it('段落标题跟着当前语言走', async () => {
+    const enText = asText((await runCmd(resume, ['resume'], ctx)).chunks)
+    const zhCtx: Ctx = { ...makeTestCtx(FILES), host: { ...testHost, currentLang: () => 'zh' } }
+    const zhText = asText((await runCmd(resume, ['resume'], zhCtx)).chunks)
+
+    expect(enText).toContain('## Skills')
+    expect(enText).toContain('## Projects')
+    expect(enText).not.toContain('## 技能')
+    expect(enText).not.toContain('## 项目')
+
+    expect(zhText).toContain('## 技能')
+    expect(zhText).toContain('## 项目')
+    expect(zhText).not.toContain('## Skills')
+    expect(zhText).not.toContain('## Projects')
   })
 
   // 简历是拼四段的，技能读不出来不该让整页消失 —— about / contact 缺失时也是这么处理的。

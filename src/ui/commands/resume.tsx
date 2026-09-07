@@ -1,4 +1,5 @@
 import { node, type Process } from '../../core/process'
+import { RESUME_TEXT } from '../../i18n/ui'
 import { Markdown } from '../rich/Markdown'
 import { parseProject, projectToText } from '../rich/ProjectCard'
 import { skillsToText } from '../rich/SkillBars'
@@ -12,6 +13,9 @@ export const resume: Process = {
   usage: 'resume',
 
   async run(io, ctx) {
+    // 这两个小标题是命令自己拼的，不来自任何内容文件 —— 硬编码就会在英文
+    // 简历中间插两行中文。
+    const t = RESUME_TEXT[ctx.host.currentLang()]
     const home = ctx.env.get('HOME') ?? '/'
     const about = readOrFail(ctx, 'about.md') ?? ''
     const contact = readOrFail(ctx, 'contact.md') ?? ''
@@ -27,10 +31,10 @@ export const resume: Process = {
 
     const source = [
       about,
-      '## 技能',
+      `## ${t.skills}`,
       // 读不出技能表不该让整页简历消失 —— about / contact 缺失时也是这么处理的。
       skillsToText(readSkillGroups(ctx) ?? []),
-      '## 项目',
+      `## ${t.projects}`,
       ...projectTexts,
       contact,
     ].join('\n')

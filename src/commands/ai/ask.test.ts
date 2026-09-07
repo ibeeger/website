@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { ask } from './ask'
-import { makeTestCtx, runCmd, fakeAi, recordingHost } from '../testkit'
+import { makeTestCtx, runCmd, fakeAi, recordingHost, testHost } from '../testkit'
 import type { AiStatus } from '../../core/ai/languageModel'
+import type { Lang } from '../../core/process'
 
 const FILES = {
   '/home/guest/about.md': '# 关于我\n\n全栈工程师，专注前端架构。\n',
@@ -9,6 +10,8 @@ const FILES = {
   '/home/guest/projects/terminal-site.md': '# terminal-site\n\n从零实现的 shell。\n',
 }
 
+// 不覆盖 host.currentLang()，走的就是站点默认语言 en —— 下面这些用例断言的
+// 是英文文案。中文那一份由文件末尾「ask 的文案跟随语言」那组显式钉住。
 const ctxWith = (status: AiStatus, chunks: string[] = []) => {
   const ctx = makeTestCtx(FILES)
   const ai = fakeAi(status, chunks)
@@ -20,8 +23,8 @@ describe('ask —— 可用性判断', () => {
   // 不再是「不调用模型、直接报错」的分支——见下面「downloadable 时触发下载」用例。
   const unavailableCases: [AiStatus, string][] = [
     [{ kind: 'unsupported' }, 'chrome://flags'],
-    [{ kind: 'unavailable' }, '硬件'],
-    [{ kind: 'downloading' }, '正在下载'],
+    [{ kind: 'unavailable' }, 'VRAM'],
+    [{ kind: 'downloading' }, 'still downloading'],
   ]
 
   for (const [status, expected] of unavailableCases) {
@@ -37,7 +40,8 @@ describe('ask —— 可用性判断', () => {
   it('unsupported 的文案要说明模型跑在本地、不上传 —— 这是访客最先关心的', async () => {
     const { ctx } = ctxWith({ kind: 'unsupported' })
     const r = await runCmd(ask, ['ask', '你好'], ctx)
-    expect(r.err).toContain('本地')
+    expect(r.err).toContain('runs on your own')
+    expect(r.err).toContain('nothing is sent to a server')
   })
 })
 
@@ -128,7 +132,7 @@ describe('ask —— 提问', () => {
       ai: fakeAi({ kind: 'downloadable' }, ['答'], { progress: [0.25, 1] }),
     }
     const r = await runCmd(ask, ['ask', '你好'], ctx)
-    expect(r.out).toContain('开始下载')
+    expect(r.out).toContain('starting the download')
     // 完整断言进度条字符串，而不只是百分比数字——20 格里 25% 对应 5 格 #。
     expect(r.out).toContain('[#####...............] 25%')
     expect(r.out).toContain('[####################] 100%')
@@ -151,7 +155,7 @@ describe('ask —— 人设注入', () => {
   it('system prompt 交代不知道就说不知道 —— 本地小模型容易编', async () => {
     const { ctx, ai } = ctxWith({ kind: 'ready' }, ['ok'])
     await runCmd(ask, ['ask', 'hi'], ctx)
-    expect(ai.systemPrompts[0]).toContain('不知道')
+    expect(ai.systemPrompts[0]).toContain('say you do not know')
   })
 })
 
@@ -186,7 +190,7 @@ describe('ask —— 进入对话模式', () => {
     const host = recordingHost()
     const ctx = { ...makeTestCtx(FILES), host, ai: fakeAi({ kind: 'ready' }) }
     const r = await runCmd(ask, ['ask'], ctx)
-    expect(r.out).toContain('对话模式')
+    expect(r.out).toContain('chat mode')
     // 三种退出方式都要写到：交互契约表里它们都成立，漏一种就是让用户少一条出路。
     expect(r.out).toContain('exit')
     expect(r.out).toContain('Ctrl+D')
@@ -214,7 +218,7 @@ describe('ask —— 进入对话模式', () => {
     const r = await runCmd(ask, ['ask'], ctx)
     expect(host.chatCalls).toHaveLength(0)
     expect(r.code).toBe(1)
-    expect(r.err).toContain('ask <问题>')
+    expect(r.err).toContain('ask <question>')
   })
 
   it('带问题时是一次性问答，不进入模式', async () => {
@@ -229,5 +233,115 @@ describe('ask —— 进入对话模式', () => {
     const ctx = { ...makeTestCtx(FILES), host, ai: fakeAi({ kind: 'ready' }, ['答']) }
     await runCmd(ask, ['ask'], ctx, '一段文本\n')
     expect(host.chatCalls).toHaveLength(0)
+  })
+})
+
+// testHost.currentLang() 返回 'en'，也就是站点默认语言 —— 上面那些用例走的都是
+// 英文路径。这里显式钉住两种语言，因为「文案跟着语言走」这件事只有在两种语言
+// 给出不同结果时才算被证明。
+const langCtx = (l: Lang, status: AiStatus, chunks: string[] = []) => ({
+  ...makeTestCtx(FILES),
+  host: { ...testHost, currentLang: () => l },
+  ai: fakeAi(status, chunks),
+})
+
+describe('ask 的文案跟随语言', () => {
+  it('英文下 unsupported 文案是英文', async () => {
+    const r = await runCmd(ask, ['ask', 'hi'], langCtx('en', { kind: 'unsupported' }))
+    expect(r.err).toContain('chrome://flags')
+    expect(r.err).toMatch(/[A-Za-z]{4,}/)
+    expect(r.err).not.toMatch(/[一-龥]/)
+  })
+
+  it('中文下 unsupported 文案是中文', async () => {
+    const r = await runCmd(ask, ['ask', 'hi'], langCtx('zh', { kind: 'unsupported' }))
+    expect(r.err).toContain('chrome://flags')
+    expect(r.err).toMatch(/[一-龥]/)
+  })
+
+  it('四种不可用状态在两种语言下都有文案，且两种语言互不相同', async () => {
+    for (const kind of ['unsupported', 'unavailable', 'downloading'] as const) {
+      const en = await runCmd(ask, ['ask', 'hi'], langCtx('en', { kind }))
+      const zh = await runCmd(ask, ['ask', 'hi'], langCtx('zh', { kind }))
+      expect(en.err.trim().length).toBeGreaterThan(0)
+      expect(zh.err.trim().length).toBeGreaterThan(0)
+      // 两种语言取到同一份文案，等于翻译表少了一半而测试还全绿。
+      expect(en.err).not.toBe(zh.err)
+    }
+  })
+
+  it('downloadable 的早退文案也跟着语言走', async () => {
+    const en = await runCmd(ask, ['ask'], langCtx('en', { kind: 'downloadable' }))
+    const zh = await runCmd(ask, ['ask'], langCtx('zh', { kind: 'downloadable' }))
+    expect(en.err).not.toMatch(/[一-龥]/)
+    expect(zh.err).toMatch(/[一-龥]/)
+  })
+
+  // 状态行和诊断段是两份独立的文案，分开断言 —— 合起来看「整段有没有汉字」时，
+  // 只要有一份还是中文，另一份漏翻也照样绿。
+  it('--status 的状态行与诊断都跟着语言走', async () => {
+    const en = await runCmd(ask, ['ask', '--status'], langCtx('en', { kind: 'unsupported' }))
+    const zh = await runCmd(ask, ['ask', '--status'], langCtx('zh', { kind: 'unsupported' }))
+    const head = (s: string) => s.split('\n')[0]!
+    const body = (s: string) => s.split('\n').slice(1).join('\n')
+
+    expect(head(en.out)).toContain('unsupported')
+    expect(head(en.out)).not.toMatch(/[一-龥]/)
+    expect(head(zh.out)).toMatch(/[一-龥]/)
+
+    expect(body(en.out)).toContain('chrome://flags')
+    expect(body(en.out)).not.toMatch(/[一-龥]/)
+    expect(body(zh.out)).toMatch(/[一-龥]/)
+  })
+
+  it('进入对话模式的引导跟着语言走 —— 英文站点上混一段中文引导就是 bug', async () => {
+    const en = await runCmd(ask, ['ask'], langCtx('en', { kind: 'ready' }))
+    const zh = await runCmd(ask, ['ask'], langCtx('zh', { kind: 'ready' }))
+    expect(en.out).not.toMatch(/[一-龥]/)
+    expect(zh.out).toMatch(/[一-龥]/)
+    // 三种退出方式在哪种语言下都不能少。
+    for (const out of [en.out, zh.out]) {
+      expect(out).toContain('exit')
+      expect(out).toContain('Ctrl+D')
+      expect(out).toContain('Ctrl+C')
+    }
+  })
+
+  it('触发下载的提示跟着语言走', async () => {
+    const en = await runCmd(ask, ['ask', 'hi'], langCtx('en', { kind: 'downloadable' }, ['ok']))
+    const zh = await runCmd(ask, ['ask', 'hi'], langCtx('zh', { kind: 'downloadable' }, ['ok']))
+    expect(en.out).not.toMatch(/[一-龥]/)
+    expect(zh.out).toMatch(/[一-龥]/)
+  })
+
+  it('system prompt 要求模型用英文回答', async () => {
+    const ctx = langCtx('en', { kind: 'ready' }, ['ok'])
+    await runCmd(ask, ['ask', 'hi'], ctx)
+    expect(ctx.ai.systemPrompts[0]).toMatch(/English/i)
+  })
+
+  it('中文模式下 system prompt 要求用中文回答', async () => {
+    const ctx = langCtx('zh', { kind: 'ready' }, ['ok'])
+    await runCmd(ask, ['ask', 'hi'], ctx)
+    expect(ctx.ai.systemPrompts[0]).toMatch(/中文/)
+  })
+
+  it('进入对话模式带的 system prompt 也跟着语言走 —— 对话模式才是多轮问答的主场', async () => {
+    const enter = async (l: Lang) => {
+      const host = recordingHost()
+      const ctx = { ...makeTestCtx(FILES), host: { ...host, currentLang: () => l }, ai: fakeAi({ kind: 'ready' }) }
+      await runCmd(ask, ['ask'], ctx)
+      return host.chatCalls[0]!.systemPrompt
+    }
+    expect(await enter('zh')).toMatch(/中文/)
+    expect(await enter('en')).toMatch(/English/i)
+  })
+
+  it('两种语言的 system prompt 都带上同一份简历资料 —— 翻译的是人设不是内容', async () => {
+    for (const l of ['en', 'zh'] as const) {
+      const ctx = langCtx(l, { kind: 'ready' }, ['ok'])
+      await runCmd(ask, ['ask', 'hi'], ctx)
+      expect(ctx.ai.systemPrompts[0]).toContain('全栈工程师，专注前端架构')
+    }
   })
 })

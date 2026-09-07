@@ -26,5 +26,3 @@ export function loadContent(lang: Lang): Record<string, string> {
   files[`${HOME}/skills.json`] = JSON.stringify(SKILLS[lang], null, 2) + '\n'
   return files
 }
-
-export { enSkills, zhSkills }

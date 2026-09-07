@@ -4,9 +4,15 @@ export const MAX_LEVEL = 5
 
 /**
  * skills.json 是站点作者手改的内容文件，"level": 6 这样的笔误完全可预见。
- * node chunk 在 React 渲染阶段才求值，proc.run 的 try/catch 早已返回，内核的
- * 执行器兜不住这里的异常——一次越界的 level 就是白屏，而不是一条错误提示。
- * 所以每一处消费 level 的地方都必须先夹到 [0, MAX_LEVEL]。
+ * 坏数据的第一道拦截在命令层的 readSkillGroups（skills.tsx）：形状不对就
+ * stderr + 退出码 1，是一次看得见、管道也接得住的失败。
+ *
+ * 但越界的 level 仍是个合法 number，过得了那道形状校验，剩下的只有取值问题。
+ * 而 node chunk 在 React 渲染阶段才求值，proc.run 的 try/catch 早已返回，这里
+ * 真抛出去只会被 OutputBlock 的 ErrorBoundary 兜成一行标红的降级文本——没有
+ * 退出码、没有 stderr，作者根本看不出自己写错了。所以这里不抛，改成夹到
+ * [0, MAX_LEVEL]：渲染保持全函数，越界的后果止步于画到边界值。
+ * 每一处消费 level 的地方都必须先过这个夹紧。
  *
  * 这个文件本身是纯 TS、零 React 依赖：src/seo/renderStaticResume.ts（构建时
  * 在 Node 里跑的纯函数）需要跟 <SkillBars> 用同一份数据与同一套夹紧规则，

@@ -69,3 +69,55 @@ describe('lang', () => {
     expect(lang.complete!(['lang', 'z'], ctx)).toEqual(['zh'])
   })
 })
+
+describe('lang 的输出跟随当前语言', () => {
+  // 两行标签都得用当前语言称呼，而不是各用各的自称 —— 只断言「整段有/没有
+  // 汉字」是抓不住的：中文列表里把 en 那行写成 English 照样满足「有汉字」。
+  // 所以直接钉住那个「说的是另一种语言」的格子。
+  it('列表里的语言标签跟着当前语言走 —— 英文站点上列一行中文标签就是混排', async () => {
+    const en = await runCmd(lang, ['lang'], ctxWithLang('en').ctx)
+    const zh = await runCmd(lang, ['lang'], ctxWithLang('zh').ctx)
+    expect(en.out).toContain('Chinese')   // en 界面里 zh 那一行
+    expect(en.out).not.toMatch(/[一-龥]/)
+    expect(zh.out).toContain('英语')       // zh 界面里 en 那一行
+    expect(zh.out).toContain('中文')
+  })
+
+  it('非法值报错跟着当前语言走', async () => {
+    const en = await runCmd(lang, ['lang', 'klingon'], ctxWithLang('en').ctx)
+    const zh = await runCmd(lang, ['lang', 'klingon'], ctxWithLang('zh').ctx)
+    expect(en.err).toContain('klingon')
+    expect(zh.err).toContain('klingon')
+    expect(en.err).not.toMatch(/[一-龥]/)
+    expect(zh.err).toMatch(/[一-龥]/)
+  })
+
+  it('切换成功提示跟着切换前的语言走 —— 用户读到的是他此刻还看得懂的那种', async () => {
+    const en = await runCmd(lang, ['lang', 'zh'], ctxWithLang('en').ctx)
+    const zh = await runCmd(lang, ['lang', 'en'], ctxWithLang('zh').ctx)
+    expect(en.out).not.toMatch(/[一-龥]/)
+    expect(zh.out).toMatch(/[一-龥]/)
+  })
+
+  it('「已经是当前语言」的提示跟着语言走', async () => {
+    const en = await runCmd(lang, ['lang', 'en'], ctxWithLang('en').ctx)
+    const zh = await runCmd(lang, ['lang', 'zh'], ctxWithLang('zh').ctx)
+    expect(en.out).not.toMatch(/[一-龥]/)
+    expect(zh.out).toMatch(/[一-龥]/)
+  })
+})
+
+// 切语言重建的是整个内核（useTerminal 里那个按 lang memo 的 createKernel）：
+// VFS、env、cwd、history 全挂在上面，一并归零。只提「临时文件」会让用户以为
+// 自己 export 的变量和 cd 到的目录还在。
+describe('lang 的切换提示要说全丢了什么', () => {
+  for (const [current, wanted, terms] of [
+    ['en', 'zh', ['history', 'director', 'export']],
+    ['zh', 'en', ['历史', '目录', 'export']],
+  ] as const) {
+    it(`${current} 下的提示同时提到历史、当前目录与导出的环境变量`, async () => {
+      const r = await runCmd(lang, ['lang', wanted], ctxWithLang(current).ctx)
+      for (const t of terms) expect(r.out.toLowerCase()).toContain(t.toLowerCase())
+    })
+  }
+})

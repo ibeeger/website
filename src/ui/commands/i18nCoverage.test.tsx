@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 // 这条测试横跨 commands 与 ui 两层 —— 它要同时枚举 src/commands 与 src/ui/commands
 // 下的全部非 hidden 命令。放在 ui 侧才能名正言顺地 import 两边：src/commands/
 // 按项目约束不该运行时依赖 React，即便 ESLint 的 no-restricted-imports 只按
