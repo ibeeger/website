@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createKernel, type Kernel } from '../core/kernel'
 import { buildInitialVfs } from '../core/vfs/bootstrap'
 import { loadContent } from '../content'
@@ -9,6 +9,7 @@ import { DEFAULT_LANG } from '../i18n/lang'
 import { createUiHost, type UiHooks } from './host'
 import { createBlockWriter } from './blockWriter'
 import { useTheme } from './useTheme'
+import { useLang } from './useLang'
 import { useChat } from './chat/useChat'
 import { createBrowserAi } from '../core/ai/languageModel'
 import type { Block } from './types'
@@ -30,6 +31,7 @@ export function useTerminal() {
   const projectedRef = useRef(new Set<string>())
 
   const { theme, setTheme, themes } = useTheme()
+  const { lang, setLang } = useLang()
 
   // 一个 provider 实例同时喂给内核（`ask --status` 查可用性）和对话模式
   // （真正提问）。分别造两个的话，命令报告的状态和模式实际用的模型可能不是
@@ -48,8 +50,8 @@ export function useTerminal() {
       listThemes() { return [] },
       currentTheme() { return '' },
       enterChat: (opts: { systemPrompt: string }) => { chat.enter(opts) },
-      setLang() { /* Task 3 接入 */ },
-      currentLang() { return 'en' as const },
+      setLang() { /* 下面每次渲染都会覆盖成最新实现 */ },
+      currentLang() { return DEFAULT_LANG },
     },
   }))
 
@@ -67,20 +69,27 @@ export function useTerminal() {
     listThemes: () => themes,
     currentTheme: () => theme,
     enterChat: (opts) => { chat.enter(opts) },
-    setLang: () => { /* Task 3 接入 */ },
-    currentLang: () => 'en' as const,
+    setLang,
+    currentLang: () => lang,
   }
 
-  // 惰性初始化：内核只在首次渲染时构造一次。
-  // 不要写成 `if (ref.current === null) { ...; setPrompt(...) }` —— 那是 render 阶段 setState。
-  const [kernel] = useState<Kernel>(() => createKernel({
-    vfs: buildInitialVfs(loadContent(DEFAULT_LANG)),
+  // 语言变了就重建内核与 VFS —— 内容是按语言加载的，换语言等于换一整棵文件树。
+  // 用 useMemo 而不是 useState 惰性初始化：后者只在首次渲染求值，永远看不到
+  // 语言变化。重建会丢掉 shell 历史与 cwd，这是切语言这个动作可接受的代价，
+  // lang 命令已经明确提示临时文件会清空。
+  const kernel = useMemo<Kernel>(() => createKernel({
+    vfs: buildInitialVfs(loadContent(lang)),
     host: createUiHost(hooksBox),
     commands: [...builtins, ...uiCommands],
     ai,
-  }))
+  }), [lang, hooksBox, ai])
 
-  const [prompt, setPrompt] = useState(() => kernel.prompt())
+  // 提示符是从内核派生出来的，不再单独存一份状态。存快照的话要在两个时机手动
+  // 同步：命令跑完（cd 改了 cwd）、以及内核被语言切换整个换掉 —— 后者只能靠
+  // effect 里 setState，那是一次纯粹多余的级联渲染。
+  // 派生成立的前提：命令结束时的 setRunning(false) 必然触发一次重渲染，
+  // cd 之后的新提示符就在那一次里被重新求值。
+  const prompt = kernel.prompt()
 
   // useChat 管状态、blocks 管渲染，两者用一个 effect 相连，而不是让状态机
   // 直接写 blocks —— 解耦之后 useChat 可以脱离 blocks 独立测试。
@@ -182,7 +191,6 @@ export function useTerminal() {
         // 无论走哪条路径都必须释放，这是防重入守卫成立的前提
         setRunning(false)
         abortRef.current = null
-        setPrompt(kernel.prompt())
       })
   }, [kernel, chat])
 

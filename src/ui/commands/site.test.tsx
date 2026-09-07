@@ -17,7 +17,18 @@ const FILES = {
   '/home/guest/contact.md': '# 联系方式\n\n- GitHub: https://github.com/example\n',
   '/home/guest/projects/alpha.md': '# alpha\n\n第一个项目。\n\n- 技术栈：Rust\n- 源码：https://example.com/alpha\n',
   '/home/guest/projects/beta.md': '# beta\n\n第二个项目。\n\n- 技术栈：TypeScript\n',
+  // 技能表和其它内容一样住在 VFS 里 —— 命令读的就是这份，换语言时整棵树被换掉。
+  '/home/guest/skills.json': JSON.stringify({
+    groups: [{ name: '语言', items: [{ name: 'TypeScript', level: 5 }] }],
+  }, null, 2) + '\n',
 }
+
+// 另一棵文件树上的技能表。名字刻意取成真实 content/en/skills.json 里不会出现的，
+// 这样「输出来自 VFS」和「输出来自直接 import 的英文 JSON」才区分得开 ——
+// 用真实数据里也有的名字，两种实现都会通过，用例就白写了。
+const OTHER_SKILLS = JSON.stringify({
+  groups: [{ name: 'Esolang', items: [{ name: 'Brainfuck', level: 2 }] }],
+}, null, 2) + '\n'
 
 let ctx: Ctx
 beforeEach(() => { ctx = makeTestCtx(FILES) })
@@ -84,6 +95,34 @@ describe('skills', () => {
     const { container } = render(<>{(nodeChunk as { node: React.ReactNode }).node}</>)
     expect(container.querySelectorAll('.skill-bar').length).toBeGreaterThan(0)
   })
+
+  // 技能表若直接 import JSON 就绕过了 VFS：换语言换掉的是文件树，绕过它的
+  // 命令会一直显示英文那份。这条用例把「输出来自 VFS」钉住。
+  it('技能表来自 VFS —— 换一棵文件树就换一份技能表', async () => {
+    const other = makeTestCtx({ ...FILES, '/home/guest/skills.json': OTHER_SKILLS })
+    const text = asText((await runCmd(skills, ['skills'], other)).chunks)
+    expect(text).toContain('Brainfuck')
+    expect(text).not.toContain('Languages')   // 真实英文技能表的分组名
+  })
+
+  it('skills.json 缺失时报错而不是崩溃', async () => {
+    const r = await runCmd(skills, ['skills'], makeTestCtx({}))
+    expect(r.code).toBe(1)
+    expect(r.err).toContain('skills.json')
+  })
+
+  // node chunk 在 React 渲染阶段才求值，那时 proc.run 的 try/catch 早已返回，
+  // 一份坏掉的 skills.json 就是白屏而不是一行错误提示。
+  it('skills.json 不是合法 JSON 时报错而不是把坏数据送进渲染', async () => {
+    const r = await runCmd(skills, ['skills'], makeTestCtx({ '/home/guest/skills.json': '{ 坏掉了' }))
+    expect(r.code).toBe(1)
+    expect(r.chunks.some(c => c.type === 'node')).toBe(false)
+  })
+
+  it('skills.json 结构不对时同样报错', async () => {
+    const r = await runCmd(skills, ['skills'], makeTestCtx({ '/home/guest/skills.json': '{"groups": [{"name": 1}]}' }))
+    expect(r.code).toBe(1)
+  })
 })
 
 // resume 是拼 about + skills + projects + contact 的旗舰命令，站点内容改动
@@ -98,7 +137,7 @@ describe('resume', () => {
   it('降级文本汇聚了 about / skills / projects / contact 四个来源各自的内容', async () => {
     const text = asText((await runCmd(resume, ['resume'], ctx)).chunks)
     expect(text).toContain('一名工程师')          // about.md
-    expect(text).toContain('TypeScript')          // 技能（来自真实的 content/skills.json）
+    expect(text).toContain('TypeScript')          // skills.json
     expect(text).toContain('alpha')                // projects/alpha.md
     expect(text).toContain('第一个项目')            // projects/alpha.md
     expect(text).toContain('GitHub')                // contact.md
@@ -109,6 +148,22 @@ describe('resume', () => {
     const nodeChunk = r.chunks.find(c => c.type === 'node')!
     const text = (nodeChunk as { toText: () => string }).toText()
     expect(text.split('\n').some(l => /alpha/.test(l))).toBe(true)
+  })
+
+  it('技能段落来自 VFS —— 换一棵文件树就换一份技能表', async () => {
+    const other = makeTestCtx({ ...FILES, '/home/guest/skills.json': OTHER_SKILLS })
+    const text = asText((await runCmd(resume, ['resume'], other)).chunks)
+    expect(text).toContain('Brainfuck')
+    expect(text).not.toContain('Languages')   // 真实英文技能表的分组名
+  })
+
+  // 简历是拼四段的，技能读不出来不该让整页消失 —— about / contact 缺失时也是这么处理的。
+  it('skills.json 缺失时其余段落照常输出', async () => {
+    const r = await runCmd(resume, ['resume'], makeTestCtx({
+      '/home/guest/about.md': '# 关于我\n\n一名工程师。\n',
+    }))
+    expect(r.code).toBe(0)
+    expect(asText(r.chunks)).toContain('一名工程师')
   })
 })
 

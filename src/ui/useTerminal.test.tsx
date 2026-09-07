@@ -84,6 +84,9 @@ afterEach(() => {
   aiCtl.throwOnPrompt = false
   aiCtl.onlyFirstReady = false
   aiCtl.calls = 0
+  // useLang 把选择持久化了，jsdom 的 localStorage 在同一个文件里跨用例存活 ——
+  // 不清掉的话，切过语言的用例会让它后面所有用例都从中文起步。
+  localStorage.clear()
 })
 
 describe('useTerminal', () => {
@@ -140,7 +143,6 @@ describe('useTerminal', () => {
   })
 
   it('内容来自真实的 content 目录', async () => {
-    // useTerminal 目前硬编码 DEFAULT_LANG（'en'）初始化 VFS，语言切换是 Task 3 的范围。
     const { result } = renderHook(() => useTerminal())
     act(() => { result.current.submit('cat about.md') })
     await waitFor(() => expect(outputOf(result.current.blocks)).toContain('About'))
@@ -183,6 +185,85 @@ describe('useTerminal', () => {
     act(() => { result.current.submit('echo recovered') })
     await waitFor(() => expect(result.current.blocks).toHaveLength(2))
     await waitFor(() => expect(outputOf([result.current.blocks[1]!])).toBe('recovered\n'))
+  })
+})
+
+describe('useTerminal 语言切换', () => {
+  // 一条命令跑完（退出码写回）才算完 —— lang 的重建是在 run 里触发的，
+  // 不等它落地就提交下一条，测的就不再是「重建之后」了。
+  const runLine = async (
+    result: { current: ReturnType<typeof useTerminal> },
+    line: string,
+    n: number,
+  ) => {
+    act(() => { result.current.submit(line) })
+    await waitFor(() => {
+      expect(result.current.blocks).toHaveLength(n)
+      expect(result.current.blocks[n - 1]!.exitCode).not.toBeNull()
+    })
+    return outputOf([result.current.blocks[n - 1]!])
+  }
+
+  it('切换语言后 VFS 内容真的变了 —— 不是只改了个标记位', async () => {
+    const { result } = renderHook(() => useTerminal())
+    const english = await runLine(result, 'cat about.md', 1)
+
+    await runLine(result, 'lang zh', 2)
+    const chinese = await runLine(result, 'cat about.md', 3)
+
+    expect(chinese).not.toBe(english)
+    expect(chinese.length).toBeGreaterThan(0)
+  })
+
+  it('切换语言后 skills 的技能表跟着变 —— 它读 VFS，不是直接 import 英文那份', async () => {
+    const { result } = renderHook(() => useTerminal())
+    expect(await runLine(result, 'skills', 1)).toContain('Languages')
+
+    await runLine(result, 'lang zh', 2)
+    const chinese = await runLine(result, 'skills', 3)
+    expect(chinese).toContain('语言')
+    expect(chinese).not.toContain('Languages')
+  })
+
+  it('切换语言后 resume 里的技能段落跟着变', async () => {
+    const { result } = renderHook(() => useTerminal())
+    expect(await runLine(result, 'resume', 1)).toContain('Languages')
+
+    await runLine(result, 'lang zh', 2)
+    const chinese = await runLine(result, 'resume', 3)
+    expect(chinese).toContain('语言')
+    expect(chinese).not.toContain('Languages')
+  })
+
+  it('lang 无参数时标记当前语言，切换后标记跟着走', async () => {
+    const { result } = renderHook(() => useTerminal())
+    expect(await runLine(result, 'lang', 1)).toMatch(/\*\s*en/)
+
+    await runLine(result, 'lang zh', 2)
+    expect(await runLine(result, 'lang', 3)).toMatch(/\*\s*zh/)
+  })
+
+  // 内核换了，提示符不跟着换的话，输入行会一直显示旧内核的 cwd ——
+  // 那个目录在新文件树里可能根本不存在。
+  it('切换语言后提示符回到新内核的 cwd', async () => {
+    const { result } = renderHook(() => useTerminal())
+    await runLine(result, 'cd projects', 1)
+    expect(result.current.prompt).toContain('~/projects')
+
+    await runLine(result, 'lang zh', 2)
+    expect(result.current.prompt).not.toContain('~/projects')
+    expect(result.current.prompt).toContain('~')
+  })
+
+  it('切换后 history 换成新数组 —— 重建的内核不共用旧会话的历史', async () => {
+    const { result } = renderHook(() => useTerminal())
+    await runLine(result, 'echo a', 1)
+    const before = result.current.history
+    expect(before).toContain('echo a')
+
+    await runLine(result, 'lang zh', 2)
+    expect(result.current.history).not.toBe(before)
+    expect(result.current.history).not.toContain('echo a')
   })
 })
 

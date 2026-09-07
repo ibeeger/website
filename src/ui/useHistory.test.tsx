@@ -28,6 +28,20 @@ describe('useHistory', () => {
     act(() => { expect(result.current.prev('typed')).toBe('typed') })
   })
 
+  // 换语言会整个重建内核，kernel.ctx.history 会换成另一个数组。游标只在挂载时
+  // 求值的话，它还指着旧数组的长度 —— 换完之后第一次按 ↑ 会取到越界的下标、
+  // 什么都不发生。这条用例盯的就是那个接缝。
+  it('历史数组被换掉后，↑ 从新数组的末尾开始', () => {
+    const { result, rerender } = renderHook(
+      ({ entries }) => useHistory(entries),
+      { initialProps: { entries: ['a', 'b', 'c'] } },
+    )
+    act(() => { expect(result.current.prev('')).toBe('c') })
+
+    rerender({ entries: ['x'] })
+    act(() => { expect(result.current.prev('')).toBe('x') })
+  })
+
   it('reset 后重新从最新一条开始', () => {
     const { result } = renderHook(() => useHistory(['a', 'b']))
     act(() => { result.current.prev('') })

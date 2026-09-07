@@ -25,6 +25,7 @@ import { which } from './sys/which'
 import { history } from './sys/history'
 import { clear } from './sys/clear'
 import { theme } from './sys/theme'
+import { lang } from './sys/lang'
 import { sudo } from './fun/sudo'
 import { cowsay } from './fun/cowsay'
 import { neofetch } from './fun/neofetch'
@@ -37,7 +38,7 @@ export const builtins: Process[] = [
   ls, pwd, cd, cat, head, tail, wc,
   tree, find, touch, mkdir, rm,
   echo, grep, sort, uniq,
-  help, man, whoami, uname, date, env, exportCmd, which, history, clear, theme,
+  help, man, whoami, uname, date, env, exportCmd, which, history, clear, theme, lang,
   ask,
   sudo, cowsay, neofetch, fortune, exit,
 ]

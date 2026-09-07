@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 
 /**
  * bash 风格的历史导航。
@@ -7,6 +7,11 @@ import { useCallback, useRef } from 'react'
 export function useHistory(entries: string[]) {
   const cursor = useRef(entries.length)
   const draft = useRef('')
+
+  // 切换语言会重建内核，kernel.ctx.history 随之换成另一个数组。游标只在首次挂载
+  // 求值，换完之后它还指着旧数组的长度 —— 第一次按 ↑ 取到越界下标，看起来就是
+  // 「没反应」。数组换了就把游标放回新数组的末尾。
+  useEffect(() => { cursor.current = entries.length }, [entries])
 
   const prev = useCallback((current: string) => {
     if (entries.length === 0) return current
