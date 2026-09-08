@@ -143,3 +143,8 @@
 @media (prefers-reduced-motion: reduce) {
   .chat-spinner { visibility: hidden; }
 }
+
+/* Google 按钮活在它自己的 iframe 里，外面只能控制留白与对齐 */
+.signin-button {
+  margin: 0.4em 0 0.2em;
+}
