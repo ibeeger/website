@@ -169,6 +169,12 @@ export const RESUME_TEXT: Record<Lang, { skills: string; projects: string }> = {
 export interface AuthText {
   /** 按钮上方那行提示 */
   prompt: string
+  /**
+   * 按钮下方的暗色小字：命令这时候在等 Google 的回调，会一直挂着 ——
+   * 用户不点按钮就永远不返回，脚本没加载完还要再等最多 10 秒。
+   * 没有这行字，终端看起来就是卡死了，得靠这行字告诉他 Ctrl+C 能退出。
+   */
+  waiting: string
   already(name: string, email: string): string
   signedIn(name: string, email: string): string
   signedOut: string
@@ -183,6 +189,7 @@ export interface AuthText {
 export const AUTH_TEXT: Record<Lang, AuthText> = {
   en: {
     prompt: 'Sign in with your Google account:',
+    waiting: 'Waiting for Google… press Ctrl+C to cancel.',
     already: (name, email) => `Already signed in as ${name} <${email}>. Run 'logout' first to switch accounts.`,
     signedIn: (name, email) => `Signed in as ${name} <${email}>`,
     signedOut: 'Signed out.',
@@ -194,6 +201,7 @@ export const AUTH_TEXT: Record<Lang, AuthText> = {
   },
   zh: {
     prompt: '用 Google 账号登录：',
+    waiting: '等待 Google 响应…… 按 Ctrl+C 取消。',
     already: (name, email) => `已经登录为 ${name} <${email}>。要换账号请先执行 logout。`,
     signedIn: (name, email) => `已登录：${name} <${email}>`,
     signedOut: '已退出登录。',

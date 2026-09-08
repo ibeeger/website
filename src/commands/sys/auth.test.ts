@@ -4,6 +4,7 @@ import { createLogin } from './login'
 import { logout } from './logout'
 import { whoami } from './whoami'
 import type { Ctx } from '../../core/process'
+import { AUTH_STORAGE_KEY } from '../../core/auth/store'
 
 function makeJwt(payload: Record<string, unknown>): string {
   const bytes = new TextEncoder().encode(JSON.stringify(payload))
@@ -19,7 +20,13 @@ const grants = (jwt: string) => createLogin(async () => jwt)
 const rejects = (message: string) => createLogin(async () => { throw new Error(message) })
 
 let ctx: Ctx
-beforeEach(() => { ctx = makeTestCtx() })
+beforeEach(() => {
+  // 干净 slate 不能靠「node 环境下没有 localStorage」这个偶然条件撑着 ——
+  // 这份 try/catch 在 node 下什么也不做（localStorage 不存在），在 jsdom
+  // 下真正清掉上一个用例留下的存档，两种环境下这份「干净」都是显式给出的。
+  try { localStorage.removeItem(AUTH_STORAGE_KEY) } catch { /* node 环境下没有 localStorage */ }
+  ctx = makeTestCtx()
+})
 
 describe('login', () => {
   it('登录成功后写入身份、改 USER、并回显姓名与邮箱', async () => {

@@ -28,5 +28,6 @@ export function buttonCredential(io: IO, ctx: Ctx): Promise<string> {
       // 这个 block 被 grep / 管道读取时的文本形态
       () => '[Sign in with Google]\n',
     ))
+    io.stdout.writeLine(t.waiting, { dim: true })
   })
 }
