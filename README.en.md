@@ -85,8 +85,9 @@ change.
 
 `login` signs you in with a Google account — the prompt, `whoami` and the boot
 greeting all recognise you afterwards; `logout` signs you out. **Entirely
-client-side**: the ID token stays in memory, only the name and email are kept in
-localStorage, no backend is involved, and nothing hidden is unlocked.
+client-side**: the ID token stays in memory only; what lands in localStorage is
+just the name, email, Google user ID (sub), and avatar URL (when Google returns
+one) — no backend is involved, and nothing hidden is unlocked.
 
 Builds need `VITE_GOOGLE_CLIENT_ID`. For local development put it in
 `.env.local` and add `http://localhost:5173` to the Authorized JavaScript

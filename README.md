@@ -79,8 +79,9 @@ export const hello: Process = {
 ## Google 登录
 
 `login` 用 Google 账号登录，登录后提示符、`whoami` 与开机欢迎语都会认得你，
-`logout` 退出。**纯前端实现**：拿到的 ID token 只留在内存里，只有姓名与邮箱
-会存进 localStorage，没有任何后端参与，也不解锁任何隐藏内容。
+`logout` 退出。**纯前端实现**：拿到的 ID token 只留在内存里，落进 localStorage
+的只有姓名、邮箱、Google 用户 ID（sub）以及头像地址（如果 Google 返回了的话）——
+没有任何后端参与，也不解锁任何隐藏内容。
 
 构建需要 `VITE_GOOGLE_CLIENT_ID`。本地开发把它写进 `.env.local`，
 并把 `http://localhost:5173` 加进 Google Cloud Console 的
