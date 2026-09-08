@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import type { VFS } from './vfs/vfs'
 import type { AiProvider } from './ai/languageModel'
+import type { AuthStore } from './auth/store'
 
 export type Style = {
   color?: string      // 语义色名（'red' | 'green' | 'blue' | 'dim' ...），映射到主题 CSS 变量
@@ -65,6 +66,7 @@ export interface Ctx {
   readonly registry: Registry
   readonly host: Host
   readonly ai: AiProvider        // 浏览器内置模型，见 core/ai/languageModel
+  readonly auth: AuthStore      // 登录态。idToken() 是留给未来后端的座位
   readonly signal: AbortSignal   // Ctrl+C
 }
 

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { createBrowserAi } from '../ai/languageModel'
+import { createAuthStore } from '../auth/store'
 import { lex, type Word } from './lexer'
 import { parse } from './parser'
 import { createEnv } from './env'
@@ -26,6 +27,7 @@ beforeEach(() => {
     }),
     registry: createRegistry(),
     ai: createBrowserAi(),
+    auth: createAuthStore(),
   host: noopHost,
     signal: new AbortController().signal,
   }
