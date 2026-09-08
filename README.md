@@ -76,6 +76,17 @@ export const hello: Process = {
 只需新增 `src/core/wasm/loader.ts` 把 WASI 的 stdin/stdout 桥接到 `IO` 上，
 `src/core/` 下的其他文件都不需要改动。
 
+## Google 登录
+
+`login` 用 Google 账号登录，登录后提示符、`whoami` 与开机欢迎语都会认得你，
+`logout` 退出。**纯前端实现**：拿到的 ID token 只留在内存里，落进 localStorage
+的只有姓名、邮箱、Google 用户 ID（sub）以及头像地址（如果 Google 返回了的话）——
+没有任何后端参与，也不解锁任何隐藏内容。
+
+构建需要 `VITE_GOOGLE_CLIENT_ID`。本地开发把它写进 `.env.local`，
+并把 `http://localhost:5173` 加进 Google Cloud Console 的
+Authorized JavaScript origins。
+
 ## 部署
 
 推送到 `main` 分支后由 GitHub Actions 自动部署到 GitHub Pages，

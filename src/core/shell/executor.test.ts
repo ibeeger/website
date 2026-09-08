@@ -6,6 +6,7 @@ import { createEnv } from './env'
 import { buildInitialVfs } from '../vfs/bootstrap'
 import { createRegistry } from '../registry'
 import { createBrowserAi } from '../ai/languageModel'
+import { createAuthStore } from '../auth/store'
 import { chunkToText, node, type Chunk, type Ctx, type Process, type Writer } from '../process'
 import { makeNoopHost } from '../testing/noopHost'
 
@@ -64,7 +65,7 @@ beforeEach(() => {
     cwd: '/home/guest', lastExitCode: 0, history: [],
     env: createEnv({ HOME: '/home/guest' }),
     vfs: buildInitialVfs({ '/home/guest/keep.txt': 'old\n' }),
-    registry, host: noopHost, ai: createBrowserAi(),
+    registry, host: noopHost, ai: createBrowserAi(), auth: createAuthStore(),
     signal: new AbortController().signal,
   }
 })

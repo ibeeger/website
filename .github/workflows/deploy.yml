@@ -30,6 +30,10 @@ jobs:
       # 自定义域名部署在根路径，base 保持默认的 '/'；
       # 若改回 user.github.io/<repo>/ 形式，需加回 VITE_BASE: /${{ github.event.repository.name }}/
       - run: pnpm build
+        env:
+          # client_id 是公开信息，用 Variables 而不是 Secrets：
+          # 它最终会出现在 dist 里，藏它没有意义，只会让排查变难。
+          VITE_GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

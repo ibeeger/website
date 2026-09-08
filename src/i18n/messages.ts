@@ -165,3 +165,50 @@ export const RESUME_TEXT: Record<Lang, { skills: string; projects: string }> = {
   en: { skills: 'Skills', projects: 'Projects' },
   zh: { skills: '技能', projects: '项目' },
 }
+
+export interface AuthText {
+  /** 按钮上方那行提示 */
+  prompt: string
+  /**
+   * 按钮下方的暗色小字：命令这时候在等 Google 的回调，会一直挂着 ——
+   * 用户不点按钮就永远不返回，脚本没加载完还要再等最多 10 秒。
+   * 没有这行字，终端看起来就是卡死了，得靠这行字告诉他 Ctrl+C 能退出。
+   */
+  waiting: string
+  already(name: string, email: string): string
+  signedIn(name: string, email: string): string
+  signedOut: string
+  notSignedIn: string
+  badCredential: string
+  /** GIS 脚本加载失败或超时。中国大陆访问不到 accounts.google.com，这条不是摆设。 */
+  unavailable: string
+  missingClientId: string
+  welcomeBack(name: string): string
+}
+
+export const AUTH_TEXT: Record<Lang, AuthText> = {
+  en: {
+    prompt: 'Sign in with your Google account:',
+    waiting: 'Waiting for Google… press Ctrl+C to cancel.',
+    already: (name, email) => `Already signed in as ${name} <${email}>. Run 'logout' first to switch accounts.`,
+    signedIn: (name, email) => `Signed in as ${name} <${email}>`,
+    signedOut: 'Signed out.',
+    notSignedIn: 'Not signed in.',
+    badCredential: 'login: the credential returned by Google could not be read.',
+    unavailable: "login: Google's sign-in service is unreachable. Check your network and try again.",
+    missingClientId: 'login: VITE_GOOGLE_CLIENT_ID is not configured for this build.',
+    welcomeBack: (name) => `Welcome back, ${name}.`,
+  },
+  zh: {
+    prompt: '用 Google 账号登录：',
+    waiting: '等待 Google 响应…… 按 Ctrl+C 取消。',
+    already: (name, email) => `已经登录为 ${name} <${email}>。要换账号请先执行 logout。`,
+    signedIn: (name, email) => `已登录：${name} <${email}>`,
+    signedOut: '已退出登录。',
+    notSignedIn: '当前未登录。',
+    badCredential: 'login: 无法读取 Google 返回的凭证。',
+    unavailable: 'login: 连不上 Google 登录服务，请检查网络后重试。',
+    missingClientId: 'login: 这次构建没有配置 VITE_GOOGLE_CLIENT_ID。',
+    welcomeBack: (name) => `欢迎回来，${name}。`,
+  },
+}

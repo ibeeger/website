@@ -6,6 +6,7 @@ import { execute } from './shell/executor'
 import { completePath } from './complete'
 import { createBrowserAi } from './ai/languageModel'
 import type { AiProvider } from './ai/languageModel'
+import { createAuthStore, type AuthStore } from './auth/store'
 import type { Ctx, Host, Process, Writer } from './process'
 import type { VFS } from './vfs/vfs'
 
@@ -33,8 +34,10 @@ export function createKernel(opts: {
   commands?: Process[]
   env?: Record<string, string>
   ai?: AiProvider              // 默认接真实浏览器 API；测试可注入替身
+  auth?: AuthStore             // 默认自建（读 localStorage）；UI 与测试可注入
 }): Kernel {
   const ai = opts.ai ?? createBrowserAi()
+  const auth = opts.auth ?? createAuthStore()
   const env = createEnv({ ...DEFAULT_ENV, ...opts.env })
   const registry = createRegistry()
   for (const c of opts.commands ?? []) registry.register(c)
@@ -53,6 +56,7 @@ export function createKernel(opts: {
       get lastExitCode() { return session.lastExitCode },
       set lastExitCode(v: number) { session.lastExitCode = v },
       ai,
+      auth,
       history: session.history,
       env, vfs: opts.vfs, registry, host: opts.host, signal,
     }

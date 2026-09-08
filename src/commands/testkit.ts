@@ -4,6 +4,7 @@ import { createEnv } from '../core/shell/env'
 import { createPipe } from '../core/pipe'
 import { chunkToText, type Chunk, type Ctx, type Host, type Process, type Writer } from '../core/process'
 import type { AiProvider, AiSession, AiStatus } from '../core/ai/languageModel'
+import { createAuthStore } from '../core/auth/store'
 
 export interface FakeAi extends AiProvider {
   created: number              // createSession 被调了几次
@@ -153,6 +154,9 @@ export function makeTestCtx(files: Record<string, string> = DEFAULT_FILES): Ctx 
     registry: createRegistry(),
     host: testHost,
     ai: fakeAi({ kind: 'unsupported' }),
+    // 用真 store 而不是替身：它在 node 环境下会因为没有 localStorage 而
+    // 静默退化成「不持久」，逻辑本身照跑 —— 造一个替身只会多一份要维护的形状。
+    auth: createAuthStore(),
     signal: new AbortController().signal,
   }
 }

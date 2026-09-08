@@ -81,6 +81,18 @@ runtime. Mounting a `.wasm` module only takes a new `src/core/wasm/loader.ts`
 bridging WASI's stdin/stdout onto `IO`; nothing else under `src/core/` has to
 change.
 
+## Sign in with Google
+
+`login` signs you in with a Google account — the prompt, `whoami` and the boot
+greeting all recognise you afterwards; `logout` signs you out. **Entirely
+client-side**: the ID token stays in memory only; what lands in localStorage is
+just the name, email, Google user ID (sub), and avatar URL (when Google returns
+one) — no backend is involved, and nothing hidden is unlocked.
+
+Builds need `VITE_GOOGLE_CLIENT_ID`. For local development put it in
+`.env.local` and add `http://localhost:5173` to the Authorized JavaScript
+origins in the Google Cloud Console.
+
 ## Deployment
 
 Pushing to `main` deploys to GitHub Pages via GitHub Actions. The custom domain
