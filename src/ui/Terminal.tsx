@@ -9,6 +9,7 @@ import { BootSequence } from './BootSequence'
 import { MobileKeyBar, type MobileKey } from './MobileKeyBar'
 import { useVisualViewport } from './useVisualViewport'
 import { UI_TEXT } from '../i18n/uiText'
+import { AUTH_TEXT } from '../i18n/messages'
 
 const BANNER = [
   '  _                      _             _ ',
@@ -35,9 +36,15 @@ export function Terminal() {
     try { return term.readMotd() } catch { return '' }
   }, [term])
 
+  // 不改 /etc/motd：它模拟的是真实系统文件，塞动态问候会把它弄脏。
+  // 欢迎语作为独立一行追加在后面。
   const bootLines = useMemo(
-    () => [...BANNER, ...motd.split('\n')],
-    [motd],
+    () => [
+      ...BANNER,
+      ...motd.split('\n'),
+      ...(term.bootIdentity === null ? [] : [AUTH_TEXT[term.lang].welcomeBack(term.bootIdentity.name), '']),
+    ],
+    [motd, term.bootIdentity, term.lang],
   )
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ block: 'end' }) }, [term.blocks, hint, bottomInset])

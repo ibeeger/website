@@ -12,6 +12,9 @@ import { useTheme } from './useTheme'
 import { useLang } from './useLang'
 import { useChat } from './chat/useChat'
 import { createBrowserAi } from '../core/ai/languageModel'
+import { createAuthStore } from '../core/auth/store'
+import { usernameOf } from '../core/auth/identity'
+import { browserGis } from './auth/gis'
 import type { Block } from './types'
 
 /** scrollback 上限，与真实终端一样丢弃最旧的输出。 */
@@ -38,6 +41,15 @@ export function useTerminal() {
   // 同一回事。惰性初始化，避免每次渲染都新建。
   const [ai] = useState(() => createBrowserAi())
   const chat = useChat(ai)
+
+  // 与 ai 同理：惰性建一次，且必须活在 kernel 的 useMemo 之外 ——
+  // 切语言会重建内核，登录态不该跟着没。
+  // onSignOut 里调 GIS：core 不能碰浏览器全局，这个钩子就是为它留的。
+  const [auth] = useState(() => createAuthStore({ onSignOut: () => browserGis.disableAutoSelect() }))
+
+  // 开机欢迎语只在首屏用一次，所以在这里定格。直接在渲染期读 auth.identity()
+  // 的话，它是普通可变状态、登录后不会触发重渲染，语义会含糊。
+  const [bootIdentity] = useState(() => auth.identity())
 
   // 用 useState 的惰性初始化，而不是 useRef(...).current：
   // react-hooks 的 refs 规则禁止在渲染期读 ref.current，而内核构造时就要拿到这个盒子。
@@ -90,7 +102,18 @@ export function useTerminal() {
     host: createUiHost(hooksBox),
     commands: [...builtins, ...uiCommands],
     ai,
-  }), [lang, hooksBox, ai])
+    auth,
+    // 上次会话登录过就让提示符直接是登录态。切语言重建内核时这里会重新求值，
+    // 所以登录后再切语言，提示符也不会退回 guest。
+    // 显式标注返回类型：不标注的话，TS 会把三元两支合并推导成
+    // `{ USER?: undefined } | { USER: string }`，与 Record<string, string>
+    // 的索引签名冲突（TS2322）。这是三元表达式配合索引签名类型的推导缺陷，
+    // 不是逻辑问题——两支实际返回的值形状都合法。
+    env: ((): Record<string, string> => {
+      const id = auth.identity()
+      return id === null ? {} : { USER: usernameOf(id) }
+    })(),
+  }), [lang, hooksBox, ai, auth])
 
   // 提示符是从内核派生出来的，不再单独存一份状态。存快照的话要在两个时机手动
   // 同步：命令跑完（cd 改了 cwd）、以及内核被语言切换整个换掉 —— 后者只能靠
@@ -229,6 +252,7 @@ export function useTerminal() {
     // 得跟着切。不让 <Terminal> 自己再调一次 useLang —— 那会是第二份独立的
     // useState，lang 命令改的是这里这一份，壳上的文案就永远停在初始值。
     lang,
+    bootIdentity,
     prompt: chat.active ? CHAT_PROMPT : prompt,
     chatActive: chat.active,
     chatInputs: chat.inputs,
